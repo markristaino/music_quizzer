@@ -9,6 +9,7 @@ import tempfile
 from datetime import datetime
 import sys
 import logging
+import requests
 
 # Configure logging
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
@@ -20,42 +21,28 @@ app.secret_key = os.urandom(24)  # for session management
 # Initialize Deezer client
 client = deezer.Client()
 
-# Load Billboard data
-def load_csv():
-    """Try to load the CSV file from various possible locations"""
-    possible_paths = [
-        # Current directory
-        'billboard_lyrics_1964-2015.csv',
-        # Absolute path from __file__
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'billboard_lyrics_1964-2015.csv'),
-        # App root directory
-        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'billboard_lyrics_1964-2015.csv')
-    ]
-    
-    for path in possible_paths:
-        logger.info(f"Trying to load CSV from: {path}")
-        if os.path.exists(path):
-            logger.info(f"Found CSV file at: {path}")
-            return pd.read_csv(path, encoding='latin1')
-    
-    # If we get here, we couldn't find the file
-    logger.error("Could not find CSV file in any of these locations:")
-    for path in possible_paths:
-        logger.error(f"- {path}")
-    raise FileNotFoundError("Could not find billboard_lyrics_1964-2015.csv")
+# Global dataframe to store song data
+df = None
 
-try:
-    logger.info(f"Current working directory: {os.getcwd()}")
-    logger.info(f"__file__ value: {__file__}")
-    logger.info("Attempting to load CSV file...")
-    
-    df = load_csv()
-    # Filter for top 50 songs
-    df = df[df['Rank'] <= 50].copy()
-    logger.info(f"Successfully loaded CSV file with {len(df)} rows (filtered to top 50 songs)")
-except Exception as e:
-    logger.error(f"Error loading CSV file: {str(e)}", exc_info=True)
-    raise
+def init_song_data():
+    """Initialize song data from CSV, with error handling"""
+    global df
+    try:
+        # Load CSV directly from GitHub (raw URL)
+        csv_url = "https://raw.githubusercontent.com/markristaino/music_quizzer/main/billboard_lyrics_1964-2015.csv"
+        logger.info(f"Loading CSV from GitHub: {csv_url}")
+        
+        # Read CSV directly from URL
+        df = pd.read_csv(csv_url, encoding='latin1')
+        df = df[df['Rank'] <= 50].copy()
+        logger.info(f"Successfully loaded {len(df)} songs")
+        return True
+    except Exception as e:
+        logger.error(f"Error loading CSV from GitHub: {str(e)}")
+        return False
+
+# Initialize song data
+csv_loaded = init_song_data()
 
 def clean_text(text):
     """Clean up text by removing special characters and normalizing spaces."""
@@ -153,6 +140,10 @@ def get_preview_url(song, artist):
 
 def get_new_song():
     """Get a random song with preview URL."""
+    if df is None:
+        print("Error: Song database not initialized")
+        return None
+        
     while True:
         song = df.sample(n=1).iloc[0]
         preview_url = get_preview_url(song['Song'], song['Artist'])
@@ -166,12 +157,20 @@ def get_new_song():
 @app.route('/')
 def index():
     """Render the main page."""
+    if not csv_loaded:
+        return render_template('error.html', error_message="Could not load song database"), 500
     return render_template('index.html')
 
 @app.route('/new-song')
 def new_song():
     """Get a new song for the quiz."""
+    if not csv_loaded:
+        return jsonify({"error": "Song database not available"}), 500
+        
     song_data = get_new_song()
+    if not song_data:
+        return jsonify({"error": "Could not get new song"}), 500
+        
     session['current_artist'] = song_data['artist']
     session['current_song'] = song_data['song']
     return jsonify({
@@ -181,6 +180,9 @@ def new_song():
 @app.route('/check-answer', methods=['POST'])
 def check_answer():
     """Check if the guess is correct."""
+    if not csv_loaded:
+        return jsonify({"error": "Song database not available"}), 500
+        
     guess = request.json.get('guess', '').strip().lower()
     correct_artist = session.get('current_artist', '').lower()
     
