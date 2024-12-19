@@ -7,6 +7,12 @@ import os
 import urllib.request
 import tempfile
 from datetime import datetime
+import sys
+import logging
+
+# Configure logging
+logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)  # for session management
@@ -18,13 +24,26 @@ client = deezer.Client()
 try:
     # Get the absolute path to the CSV file
     csv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'billboard_lyrics_1964-2015.csv')
-    print(f"Attempting to load CSV file from: {csv_path}")
+    logger.info(f"Current working directory: {os.getcwd()}")
+    logger.info(f"__file__ value: {__file__}")
+    logger.info(f"Attempting to load CSV file from: {csv_path}")
+    
+    # Check if file exists
+    if not os.path.exists(csv_path):
+        logger.error(f"CSV file not found at: {csv_path}")
+        # List directory contents
+        dir_path = os.path.dirname(os.path.abspath(__file__))
+        logger.info(f"Directory contents of {dir_path}:")
+        for file in os.listdir(dir_path):
+            logger.info(f"- {file}")
+        raise FileNotFoundError(f"CSV file not found at: {csv_path}")
+    
     df = pd.read_csv(csv_path, encoding='latin1')
     # Filter for top 50 songs
     df = df[df['Rank'] <= 50].copy()
-    print(f"Successfully loaded CSV file with {len(df)} rows (filtered to top 50 songs)")
+    logger.info(f"Successfully loaded CSV file with {len(df)} rows (filtered to top 50 songs)")
 except Exception as e:
-    print(f"Error loading CSV file: {str(e)}")
+    logger.error(f"Error loading CSV file: {str(e)}", exc_info=True)
     raise
 
 def clean_text(text):
@@ -117,7 +136,7 @@ def get_preview_url(song, artist):
                     return track.preview
                         
     except Exception as e:
-        print(f"Error searching for {song}: {str(e)}")
+        logger.error(f"Error searching for {song}: {str(e)}", exc_info=True)
     
     return None
 
@@ -178,3 +197,8 @@ def check_answer():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port, debug=True)
+else:
+    # Configure Gunicorn logging
+    gunicorn_logger = logging.getLogger('gunicorn.error')
+    app.logger.handlers = gunicorn_logger.handlers
+    app.logger.setLevel(gunicorn_logger.level)
