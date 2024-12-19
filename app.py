@@ -1,5 +1,4 @@
 from flask import Flask, render_template, request, jsonify, session
-from pygame import mixer
 import pandas as pd
 import deezer
 import random
@@ -17,9 +16,10 @@ client = deezer.Client()
 
 # Load Billboard data
 try:
-    print(f"Current working directory: {os.getcwd()}")
-    print(f"Attempting to load CSV file...")
-    df = pd.read_csv('billboard_lyrics_1964-2015.csv', encoding='latin1')
+    # Get the absolute path to the CSV file
+    csv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'billboard_lyrics_1964-2015.csv')
+    print(f"Attempting to load CSV file from: {csv_path}")
+    df = pd.read_csv(csv_path, encoding='latin1')
     # Filter for top 50 songs
     df = df[df['Rank'] <= 50].copy()
     print(f"Successfully loaded CSV file with {len(df)} rows (filtered to top 50 songs)")
