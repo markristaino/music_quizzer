@@ -21,24 +21,35 @@ app.secret_key = os.urandom(24)  # for session management
 client = deezer.Client()
 
 # Load Billboard data
+def load_csv():
+    """Try to load the CSV file from various possible locations"""
+    possible_paths = [
+        # Current directory
+        'billboard_lyrics_1964-2015.csv',
+        # Absolute path from __file__
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'billboard_lyrics_1964-2015.csv'),
+        # App root directory
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'billboard_lyrics_1964-2015.csv')
+    ]
+    
+    for path in possible_paths:
+        logger.info(f"Trying to load CSV from: {path}")
+        if os.path.exists(path):
+            logger.info(f"Found CSV file at: {path}")
+            return pd.read_csv(path, encoding='latin1')
+    
+    # If we get here, we couldn't find the file
+    logger.error("Could not find CSV file in any of these locations:")
+    for path in possible_paths:
+        logger.error(f"- {path}")
+    raise FileNotFoundError("Could not find billboard_lyrics_1964-2015.csv")
+
 try:
-    # Get the absolute path to the CSV file
-    csv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'billboard_lyrics_1964-2015.csv')
     logger.info(f"Current working directory: {os.getcwd()}")
     logger.info(f"__file__ value: {__file__}")
-    logger.info(f"Attempting to load CSV file from: {csv_path}")
+    logger.info("Attempting to load CSV file...")
     
-    # Check if file exists
-    if not os.path.exists(csv_path):
-        logger.error(f"CSV file not found at: {csv_path}")
-        # List directory contents
-        dir_path = os.path.dirname(os.path.abspath(__file__))
-        logger.info(f"Directory contents of {dir_path}:")
-        for file in os.listdir(dir_path):
-            logger.info(f"- {file}")
-        raise FileNotFoundError(f"CSV file not found at: {csv_path}")
-    
-    df = pd.read_csv(csv_path, encoding='latin1')
+    df = load_csv()
     # Filter for top 50 songs
     df = df[df['Rank'] <= 50].copy()
     logger.info(f"Successfully loaded CSV file with {len(df)} rows (filtered to top 50 songs)")
