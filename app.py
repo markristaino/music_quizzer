@@ -16,7 +16,16 @@ app.secret_key = os.urandom(24)  # for session management
 client = deezer.Client()
 
 # Load Billboard data
-df = pd.read_csv('billboard_lyrics_1964-2015.csv', encoding='latin1')
+try:
+    print(f"Current working directory: {os.getcwd()}")
+    print(f"Attempting to load CSV file...")
+    df = pd.read_csv('billboard_lyrics_1964-2015.csv', encoding='latin1')
+    # Filter for top 50 songs
+    df = df[df['Rank'] <= 50].copy()
+    print(f"Successfully loaded CSV file with {len(df)} rows (filtered to top 50 songs)")
+except Exception as e:
+    print(f"Error loading CSV file: {str(e)}")
+    raise
 
 def clean_text(text):
     """Clean up text by removing special characters and normalizing spaces."""
@@ -134,6 +143,7 @@ def new_song():
     """Get a new song for the quiz."""
     song_data = get_new_song()
     session['current_artist'] = song_data['artist']
+    session['current_song'] = song_data['song']
     return jsonify({
         'preview_url': song_data['preview_url']
     })
@@ -144,17 +154,27 @@ def check_answer():
     guess = request.json.get('guess', '').strip().lower()
     correct_artist = session.get('current_artist', '').lower()
     
+    # Reject empty guesses
+    if not guess:
+        return jsonify({
+            'correct': False,
+            'artist': session['current_artist'],
+            'song': session['current_song']
+        })
+    
     # Clean both guess and correct answer
     guess = clean_text(guess)
     correct_artist = clean_text(correct_artist)
     
-    is_correct = guess in correct_artist or correct_artist in guess
+    is_correct = (guess == correct_artist or 
+                 (len(guess) > 3 and (guess in correct_artist or correct_artist in guess)))
     
     return jsonify({
         'correct': is_correct,
-        'artist': session['current_artist']
+        'artist': session['current_artist'],
+        'song': session['current_song']
     })
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    port = int(os.environ.get('PORT', 8080))
+    app.run(host='0.0.0.0', port=port, debug=True)

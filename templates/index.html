@@ -80,17 +80,75 @@
         </div>
     </div>
 
+    <!-- Result Modal -->
+    <div class="modal fade" id="resultModal" tabindex="-1" aria-labelledby="resultModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-body text-center p-4">
+                    <h4 id="modalResult" class="mb-3"></h4>
+                    <button id="nextSongButton" class="btn btn-primary">Next Song</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         let currentAudio = null;
         let score = 0;
         let total = 0;
+        const MAX_SONGS = 10;
+        const resultModal = new bootstrap.Modal(document.getElementById('resultModal'));
+        
+        // Fun response variations
+        const correctResponses = [
+            "🎯 You absolute genius!",
+            "🎸 Rock on, music master!",
+            "🌟 You're on fire!",
+            "🎼 Perfect pitch, maestro!",
+            "🎵 You're crushing it!",
+            "🎧 Those ears don't lie!",
+            "🎪 Ladies and gentlemen, we have a winner!",
+            "🎭 You're a musical detective!",
+            "🎪 Standing ovation for you!",
+            "🎨 Pure artistic brilliance!"
+        ];
+        
+        const incorrectResponses = [
+            "🤔 Nice try, Sherlock!",
+            "😅 Close, but no guitar!",
+            "🎭 Plot twist - different artist!",
+            "🎪 Back to music school!",
+            "🎵 Almost had it!",
+            "🎧 Time to tune those ears!",
+            "🌟 Keep the rhythm going!",
+            "🎼 Not quite the right note!",
+            "🎸 Rock and... roll with it!",
+            "🎯 Missing the mark, but keep shooting!"
+        ];
+        
+        function getRandomResponse(responses) {
+            return responses[Math.floor(Math.random() * responses.length)];
+        }
         
         function updateScore() {
             document.getElementById('score').textContent = score;
             document.getElementById('total').textContent = total;
         }
         
+        document.getElementById('nextSongButton').addEventListener('click', () => {
+            resultModal.hide();
+            document.getElementById('answer-input').value = '';
+            document.getElementById('answer-input').disabled = false;
+            loadNewSong();
+        });
+        
         function loadNewSong() {
+            if (total >= MAX_SONGS) {
+                showGameOver();
+                return;
+            }
+            
             fetch('/new-song')
                 .then(response => response.json())
                 .then(data => {
@@ -99,6 +157,9 @@
                         currentAudio = null;
                     }
                     currentAudio = new Audio(data.preview_url);
+                    currentAudio.addEventListener('ended', () => {
+                        document.querySelector('#playButton i').className = 'fas fa-play';
+                    });
                 });
         }
         
@@ -133,32 +194,58 @@
             .then(response => response.json())
             .then(data => {
                 total++;
-                const feedback = document.getElementById('feedback');
+                let resultMessage;
                 
                 if (data.correct) {
                     score++;
-                    feedback.className = 'feedback correct';
-                    feedback.textContent = '🎉 Correct!';
+                    resultMessage = `🎉 ${getRandomResponse(correctResponses)} The song was "${data.song}" by ${data.artist}`;
                 } else {
-                    feedback.className = 'feedback incorrect';
-                    feedback.textContent = `❌ Sorry, it was ${data.artist}`;
+                    resultMessage = `❌ ${getRandomResponse(incorrectResponses)} It was "${data.song}" by ${data.artist}`;
                 }
                 
                 updateScore();
-                document.getElementById('answer-input').value = '';
+                document.getElementById('answer-input').disabled = true;
                 
-                // Load next song after a delay
-                setTimeout(() => {
-                    loadNewSong();
-                    feedback.textContent = '';
-                }, 2000);
+                // Stop current song if playing
+                if (currentAudio) {
+                    currentAudio.pause();
+                    document.querySelector('#playButton i').className = 'fas fa-play';
+                }
+                
+                // Show result in modal
+                document.getElementById('modalResult').textContent = resultMessage;
+                resultModal.show();
             });
         });
+        
+        function showGameOver() {
+            const container = document.querySelector('.quiz-container');
+            const percentage = (score / MAX_SONGS) * 100;
+            let message = '';
+            
+            if (percentage === 100) {
+                message = '🎉 Congratulations! Perfect score! You got all 10/10!';
+            } else if (percentage >= 70) {
+                message = `🎵 Well done! You got ${score}/${MAX_SONGS}!`;
+            } else if (percentage >= 40) {
+                message = `🎧 Not bad! You got ${score}/${MAX_SONGS}.`;
+            } else {
+                message = `📢 Keep practicing! You got ${score}/${MAX_SONGS}.`;
+            }
+            
+            container.innerHTML = `
+                <h1 class="mb-4">Game Over!</h1>
+                <p class="score mb-4">${message}</p>
+                <button id="playAgain" class="btn btn-primary">Play Again?</button>
+            `;
+            
+            document.getElementById('playAgain').addEventListener('click', () => {
+                window.location.reload();
+            });
+        }
         
         // Load first song when page loads
         loadNewSong();
     </script>
-    
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
