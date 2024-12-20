@@ -65,6 +65,27 @@
         .incorrect {
             color: #dc3545;
         }
+        #leaderboard {
+            margin-top: 2rem;
+            padding-top: 2rem;
+            border-top: 1px solid #dee2e6;
+        }
+        .list-group-item {
+            background: rgba(255, 255, 255, 0.8);
+        }
+        .modal-response {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            font-weight: bold;
+        }
+        .modal-answer {
+            font-size: 1.2rem;
+            color: #2a5298;
+        }
+        .modal-answer strong {
+            color: #1e3c72;
+            font-size: 1.3rem;
+        }
     </style>
 </head>
 <body>
@@ -75,20 +96,38 @@
                     <h1 class="mb-4">Music Quiz</h1>
                     <p class="score mb-4">Score: <span id="score">0</span>/<span id="total">0</span></p>
                     
-                    <div class="mb-4">
-                        <button id="playButton" class="btn btn-play">
-                            <i class="fas fa-play"></i>
-                        </button>
+                    <!-- Username input at start -->
+                    <div id="username-container" class="mb-4">
+                        <input type="text" id="username-input" class="form-control mb-2" 
+                               placeholder="Enter your username" autocomplete="off">
+                        <button id="start-game" class="btn btn-primary">Start Game</button>
                     </div>
                     
-                    <div class="mb-3">
-                        <input type="text" id="answer-input" class="form-control" 
-                               placeholder="Who's the artist?" autocomplete="off">
+                    <!-- Game container (initially hidden) -->
+                    <div id="game-container" style="display: none;">
+                        <div class="mb-4">
+                            <button id="playButton" class="btn btn-play">
+                                <i class="fas fa-play"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <input type="text" id="answer-input" class="form-control" 
+                                   placeholder="Who's the artist?" autocomplete="off">
+                        </div>
+                        
+                        <button id="submitButton" class="btn btn-primary mb-3">Submit Answer</button>
+                        
+                        <div id="feedback" class="feedback"></div>
                     </div>
-                    
-                    <button id="submitButton" class="btn btn-primary mb-3">Submit Answer</button>
-                    
-                    <div id="feedback" class="feedback"></div>
+
+                    <!-- Leaderboard -->
+                    <div id="leaderboard" class="mt-4">
+                        <h3>Top 10 Scores</h3>
+                        <div id="leaderboard-list" class="list-group">
+                            <!-- Leaderboard entries will be added here -->
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -111,8 +150,9 @@
         let currentAudio = null;
         let score = 0;
         let total = 0;
-        const MAX_SONGS = 10;
+        const MAX_SONGS = 6;
         const resultModal = new bootstrap.Modal(document.getElementById('resultModal'));
+        let username = '';
         
         // Fun response variations
         const correctResponses = [
@@ -149,6 +189,44 @@
             document.getElementById('score').textContent = score;
             document.getElementById('total').textContent = total;
         }
+
+        function updateLeaderboard() {
+            fetch('/leaderboard')
+                .then(response => response.json())
+                .then(scores => {
+                    const leaderboardList = document.getElementById('leaderboard-list');
+                    leaderboardList.innerHTML = '';
+                    scores.forEach((score, index) => {
+                        const entry = document.createElement('div');
+                        entry.className = 'list-group-item d-flex justify-content-between align-items-center';
+                        entry.innerHTML = `
+                            <span class="badge bg-primary rounded-pill me-2">${index + 1}</span>
+                            <span class="flex-grow-1">${score.username}</span>
+                            <span class="badge bg-secondary">${score.score}</span>
+                        `;
+                        leaderboardList.appendChild(entry);
+                    });
+                });
+        }
+
+        // Start game when username is submitted
+        document.getElementById('start-game').addEventListener('click', () => {
+            username = document.getElementById('username-input').value.trim();
+            if (username) {
+                fetch('/set_username', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ username: username })
+                })
+                .then(() => {
+                    document.getElementById('username-container').style.display = 'none';
+                    document.getElementById('game-container').style.display = 'block';
+                    loadNewSong();
+                });
+            }
+        });
         
         document.getElementById('nextSongButton').addEventListener('click', () => {
             resultModal.hide();
@@ -194,72 +272,93 @@
                 document.getElementById('submitButton').click();
             }
         });
+
+        function showGameOver() {
+            const modalResult = document.getElementById('modalResult');
+            const lastAnswer = modalResult.innerHTML; // Save the last answer
+            
+            // Show the game over screen after a short delay to let user see the last answer
+            setTimeout(() => {
+                modalResult.innerHTML = `
+                    <h3 class="mb-4">Game Over!</h3>
+                    <p class="modal-response">Final Score: ${score}/${MAX_SONGS}</p>
+                    ${lastAnswer}  <!-- Show the last answer -->
+                `;
+                
+                // Add play again button
+                const playAgainButton = document.createElement('button');
+                playAgainButton.className = 'btn btn-primary mt-3';
+                playAgainButton.textContent = 'Play Again';
+                playAgainButton.onclick = () => {
+                    window.location.reload();
+                };
+                document.querySelector('.modal-body').appendChild(playAgainButton);
+            }, 2000); // Wait 2 seconds before showing game over screen
+        }
         
+        // Update submit button handler
         document.getElementById('submitButton').addEventListener('click', () => {
-            const guess = document.getElementById('answer-input').value;
+            const submitButton = document.getElementById('submitButton');
+            const answerInput = document.getElementById('answer-input');
+            
+            // Disable button and input while checking
+            submitButton.disabled = true;
+            answerInput.disabled = true;
             
             fetch('/check-answer', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ guess: guess })
+                body: JSON.stringify({
+                    guess: answerInput.value
+                })
             })
             .then(response => response.json())
             .then(data => {
-                total++;
-                let resultMessage;
-                
-                if (data.correct) {
-                    score++;
-                    resultMessage = `🎉 ${getRandomResponse(correctResponses)} The song was "${data.song}" by ${data.artist}`;
-                } else {
-                    resultMessage = `❌ ${getRandomResponse(incorrectResponses)} It was "${data.song}" by ${data.artist}`;
+                if (data.error) {
+                    throw new Error(data.error);
                 }
                 
+                const modalResult = document.getElementById('modalResult');
+                const response = data.correct ? 
+                    `${getRandomResponse(correctResponses)}<br>` :
+                    `${getRandomResponse(incorrectResponses)}<br>`;
+                
+                // Convert markdown bold to HTML bold
+                const answer = data.answer.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                modalResult.innerHTML = `
+                    <p class="modal-response">${response}</p>
+                    <p class="modal-answer">The correct answer was: ${answer}</p>
+                `;
+                
+                score = data.score;
+                total = data.questions_answered;
                 updateScore();
-                document.getElementById('answer-input').disabled = true;
                 
-                // Stop current song if playing
-                if (currentAudio) {
-                    currentAudio.pause();
-                    document.querySelector('#playButton i').className = 'fas fa-play';
-                }
+                // Clear and re-enable input
+                answerInput.value = '';
+                answerInput.disabled = false;
+                submitButton.disabled = false;
                 
-                // Show result in modal
-                document.getElementById('modalResult').textContent = resultMessage;
                 resultModal.show();
+                
+                if (total >= MAX_SONGS) {
+                    showGameOver();
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                submitButton.disabled = false;
+                answerInput.disabled = false;
             });
         });
         
-        function showGameOver() {
-            const container = document.querySelector('.quiz-container');
-            const percentage = (score / MAX_SONGS) * 100;
-            let message = '';
-            
-            if (percentage === 100) {
-                message = '🎉 Congratulations! Perfect score! You got all 10/10!';
-            } else if (percentage >= 70) {
-                message = `🎵 Well done! You got ${score}/${MAX_SONGS}!`;
-            } else if (percentage >= 40) {
-                message = `🎧 Not bad! You got ${score}/${MAX_SONGS}.`;
-            } else {
-                message = `📢 Keep practicing! You got ${score}/${MAX_SONGS}.`;
-            }
-            
-            container.innerHTML = `
-                <h1 class="mb-4">Game Over!</h1>
-                <p class="score mb-4">${message}</p>
-                <button id="playAgain" class="btn btn-primary">Play Again?</button>
-            `;
-            
-            document.getElementById('playAgain').addEventListener('click', () => {
-                window.location.reload();
-            });
-        }
+        // Load leaderboard on page load
+        updateLeaderboard();
         
-        // Load first song when page loads
-        loadNewSong();
+        // Start with username input, don't load first song yet
+        document.getElementById('game-container').style.display = 'none';
     </script>
 </body>
 </html>
