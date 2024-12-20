@@ -114,9 +114,12 @@ def clean_text(text):
 def get_preview_url(song, artist):
     """Search Deezer for a song and return the preview URL."""
     try:
+        logger.info(f"Searching for preview URL - Song: {song}, Artist: {artist}")
+        
         # Clean up song and artist names
         clean_song = clean_text(song)
         clean_artist = clean_text(artist)
+        logger.info(f"Cleaned text - Song: {clean_song}, Artist: {clean_artist}")
         
         # Try different search strategies
         search_strategies = [
@@ -127,69 +130,78 @@ def get_preview_url(song, artist):
             lambda: f'{clean_song} {clean_artist}',
             
             # Strategy 3: Just the song title
-            lambda: clean_song,
-            
-            # Strategy 4: Search by artist and first few words of song
-            lambda: f'{" ".join(clean_song.split()[:3])} {clean_artist}',
-            
-            # Strategy 5: Search by artist's first name/word and song
-            lambda: f'{clean_song} {clean_artist.split()[0]}',
-            
-            # Strategy 6: Search by just the artist
-            lambda: clean_artist
+            lambda: clean_song
         ]
         
         for get_query in search_strategies:
             query = get_query()
-            results = client.search(query)
-            
-            if not results:
+            logger.info(f"Trying search query: {query}")
+            try:
+                results = client.search(query)
+                logger.info(f"Found {len(results)} results for query: {query}")
+                
+                if not results:
+                    continue
+                    
+                # Try to find the best match
+                for track in results:
+                    track_name = clean_text(track.title.lower())
+                    track_artist = clean_text(track.artist.name.lower())
+                    
+                    logger.info(f"Comparing - Track: {track_name}, Artist: {track_artist}")
+                    logger.info(f"Preview URL: {track.preview}")
+                    
+                    # Calculate similarity scores
+                    name_match = False
+                    artist_match = False
+                    
+                    # Check song name similarity
+                    song_words = set(clean_song.lower().split())
+                    track_words = set(track_name.split())
+                    common_words = song_words & track_words
+                    
+                    if len(common_words) >= min(2, len(song_words)):
+                        name_match = True
+                    
+                    # Check artist similarity
+                    artist_words = set(clean_artist.lower().split())
+                    track_artist_words = set(track_artist.split())
+                    
+                    if artist_words & track_artist_words:
+                        artist_match = True
+                    
+                    logger.info(f"Match results - Name match: {name_match}, Artist match: {artist_match}")
+                    
+                    # Accept if both name and artist match reasonably well
+                    if name_match and artist_match and track.preview:
+                        logger.info(f"Found matching track with preview URL: {track.preview}")
+                        return track.preview
+            except Exception as e:
+                logger.error(f"Error during search with query '{query}': {str(e)}")
                 continue
-                
-            # Try to find the best match
-            for track in results:
-                track_name = clean_text(track.title.lower())
-                track_artist = clean_text(track.artist.name.lower())
-                
-                # Calculate similarity scores
-                name_match = False
-                artist_match = False
-                
-                # Check song name similarity
-                song_words = set(clean_song.lower().split())
-                track_words = set(track_name.split())
-                common_words = song_words & track_words
-                
-                if len(common_words) >= min(2, len(song_words)):
-                    name_match = True
-                
-                # Check artist similarity
-                artist_words = set(clean_artist.lower().split())
-                track_artist_words = set(track_artist.split())
-                
-                if artist_words & track_artist_words:
-                    artist_match = True
-                
-                # Accept if both name and artist match reasonably well
-                if name_match and artist_match and track.preview:
-                    return track.preview
-                        
+                    
     except Exception as e:
-        logger.error(f"Error searching for {song}: {str(e)}", exc_info=True)
+        logger.error(f"Error in get_preview_url: {str(e)}")
     
+    logger.warning("No preview URL found after trying all strategies")
     return None
 
 def get_new_song():
     """Get a new song for the quiz."""
     try:
+        logger.info("=== Starting new song request ===")
         logger.info(f"Session before new song: {dict(session)}")
         
         if song_data is None:
+            logger.info("Initializing song data")
             init_song_data()
         
         # Simple random selection
         song = song_data.sample(n=1).iloc[0]
+        logger.info(f"Selected song: {song['Song']} by {song['Artist']}")
+        
         preview_url = get_preview_url(song['Song'], song['Artist'])
+        logger.info(f"Retrieved preview URL: {preview_url}")
         
         if preview_url:
             # Store current song info in session
@@ -197,10 +209,13 @@ def get_new_song():
             session['current_artist'] = song['Artist']
             
             logger.info(f"Session after new song: {dict(session)}")
+            logger.info("=== Completed new song request successfully ===")
             
             return jsonify({
                 'preview_url': preview_url
             })
+            
+        logger.warning("No preview available for selected song")
         return jsonify({'error': 'No preview available'}), 404
         
     except Exception as e:
@@ -249,14 +264,19 @@ def index():
 def new_song():
     """Get a new song for the quiz."""
     try:
+        logger.info("=== Starting new song request ===")
         logger.info(f"Session before new song: {dict(session)}")
         
         if song_data is None:
+            logger.info("Initializing song data")
             init_song_data()
         
         # Simple random selection
         song = song_data.sample(n=1).iloc[0]
+        logger.info(f"Selected song: {song['Song']} by {song['Artist']}")
+        
         preview_url = get_preview_url(song['Song'], song['Artist'])
+        logger.info(f"Retrieved preview URL: {preview_url}")
         
         if preview_url:
             # Store current song info in session
@@ -264,10 +284,13 @@ def new_song():
             session['current_artist'] = song['Artist']
             
             logger.info(f"Session after new song: {dict(session)}")
+            logger.info("=== Completed new song request successfully ===")
             
             return jsonify({
                 'preview_url': preview_url
             })
+            
+        logger.warning("No preview available for selected song")
         return jsonify({'error': 'No preview available'}), 404
         
     except Exception as e:

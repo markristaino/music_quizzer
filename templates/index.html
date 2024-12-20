@@ -229,35 +229,68 @@
         });
 
         function loadNewSong() {
+            console.log('Requesting new song...');
             fetch('/new-song')
-                .then(response => response.json())
+                .then(response => {
+                    console.log('Response status:', response.status);
+                    return response.json();
+                })
                 .then(data => {
+                    console.log('Received data:', data);
                     if (data.error) {
                         throw new Error(data.error);
                     }
+                    
+                    console.log('Loading audio from URL:', data.preview_url);
+                    
                     if (currentAudio) {
+                        console.log('Stopping previous audio');
                         currentAudio.pause();
                     }
-                    currentAudio = new Audio(data.preview_url);
+                    
+                    currentAudio = new Audio();
+                    
+                    // Add all possible event listeners for debugging
+                    ['loadstart', 'durationchange', 'loadedmetadata', 'loadeddata', 
+                     'progress', 'canplay', 'canplaythrough', 'error', 'stalled', 
+                     'suspend', 'abort', 'timeout', 'ended'].forEach(event => {
+                        currentAudio.addEventListener(event, () => {
+                            console.log('Audio event:', event);
+                            if (event === 'error') {
+                                console.error('Audio error:', currentAudio.error);
+                            }
+                        });
+                    });
+                    
                     currentAudio.addEventListener('ended', () => {
                         document.querySelector('#playButton i').className = 'fas fa-play';
                     });
+                    
+                    currentAudio.src = data.preview_url;
+                    console.log('Audio object created and source set');
                 })
                 .catch(error => {
-                    console.error('Error loading song:', error);
+                    console.error('Error in loadNewSong:', error);
+                    document.getElementById('feedback').textContent = 'Error loading song. Please try again.';
+                    document.getElementById('feedback').className = 'feedback incorrect';
                 });
         }
         
         document.getElementById('playButton').addEventListener('click', () => {
+            console.log('Play button clicked');
             if (currentAudio) {
                 if (currentAudio.paused) {
+                    console.log('Attempting to play audio...');
                     currentAudio.play()
-                    .then(() => {
-                        document.querySelector('#playButton i').className = 'fas fa-pause';
-                    })
-                    .catch(error => {
-                        console.error('Error playing audio:', error);
-                    });
+                        .then(() => {
+                            console.log('Audio playing successfully');
+                            document.querySelector('#playButton i').className = 'fas fa-pause';
+                        })
+                        .catch(error => {
+                            console.error('Error playing audio:', error);
+                            document.getElementById('feedback').textContent = 'Error playing audio. Please try again.';
+                            document.getElementById('feedback').className = 'feedback incorrect';
+                        });
                 } else {
                     currentAudio.pause();
                     document.querySelector('#playButton i').className = 'fas fa-play';
