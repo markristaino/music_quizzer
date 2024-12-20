@@ -23,8 +23,10 @@ app.secret_key = os.urandom(24)  # for session management
 # Initialize Deezer client
 client = deezer.Client()
 
-# Global dataframe to store song data
+# Global variables
 song_data = None
+recent_songs = set()  # Keep track of recently played songs
+MAX_RECENT_SONGS = 100  # How many songs to remember
 
 def init_song_data():
     """Initialize song data from CSV, with error handling"""
@@ -38,9 +40,6 @@ def init_song_data():
             # Fall back to original Billboard data if Spotify data not available
             df = pd.read_csv('billboard_lyrics_1964-2015.csv', encoding='latin1')
             logger.info("Loaded original Billboard dataset")
-        
-        # Take a random sample of songs
-        df = df.sample(n=min(1000, len(df)))
         
         song_data = df
         logger.info(f"Loaded {len(song_data)} songs")
@@ -144,22 +143,28 @@ def get_preview_url(song, artist):
     return None
 
 def get_new_song():
-    """Get a random song with preview URL."""
-    if song_data is None:
-        print("Error: Song database not initialized")
-        return None
+    """Get a new song for the quiz."""
+    try:
+        if song_data is None:
+            init_song_data()
         
-    # Simple random selection
-    song = song_data.sample(n=1).iloc[0]
-    
-    preview_url = get_preview_url(song['Song'], song['Artist'])
-    if preview_url:
-        return {
-            'preview_url': preview_url,
-            'song': song['Song'],
-            'artist': song['Artist']
-        }
-    return None
+        # Simple random selection
+        song = song_data.sample(n=1).iloc[0]
+        preview_url = get_preview_url(song['Song'], song['Artist'])
+        
+        if preview_url:
+            # Store current song info in session
+            session['current_song'] = song['Song']
+            session['current_artist'] = song['Artist']
+            
+            return jsonify({
+                'preview_url': preview_url
+            })
+        return jsonify({'error': 'No preview available'}), 404
+        
+    except Exception as e:
+        logger.error(f"Error getting new song: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 # Database setup
 def init_db():
@@ -194,82 +199,84 @@ def index():
 @app.route('/new-song')
 def new_song():
     """Get a new song for the quiz."""
-    if not init_song_data():
-        return jsonify({"error": "Song database not available"}), 500
+    try:
+        if song_data is None:
+            init_song_data()
         
-    # Don't load new song if game is over
-    if session.get('questions_answered', 0) >= 6:
-        return jsonify({"error": "Game is over"}), 400
+        # Simple random selection
+        song = song_data.sample(n=1).iloc[0]
+        preview_url = get_preview_url(song['Song'], song['Artist'])
         
-    song_data = get_new_song()
-    if not song_data:
-        return jsonify({"error": "Could not get new song"}), 500
+        if preview_url:
+            # Store current song info in session
+            session['current_song'] = song['Song']
+            session['current_artist'] = song['Artist']
+            
+            return jsonify({
+                'preview_url': preview_url
+            })
+        return jsonify({'error': 'No preview available'}), 404
         
-    session['current_artist'] = song_data['artist']
-    session['current_song'] = song_data['song']
-    return jsonify({
-        'preview_url': song_data['preview_url']
-    })
+    except Exception as e:
+        logger.error(f"Error getting new song: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/check-answer', methods=['POST'])
 def check_answer():
+    """Check if the answer is correct."""
     try:
-        if not init_song_data():
-            return jsonify({"error": "Song database not available"}), 500
-
         guess = request.json.get('guess', '').strip()
-        current_artist = session.get('current_artist', '')
-        current_song = session.get('current_song', '')
+        current_song = session.get('current_song')
+        current_artist = session.get('current_artist')
         
-        # Treat empty guesses as incorrect answers
-        if not guess:
-            # Still increment questions_answered for blank responses
-            session['questions_answered'] = session.get('questions_answered', 0) + 1
-            
-            # If game is over (after 6 questions), save score
-            if session.get('questions_answered', 0) >= 6:
-                username = session.get('username', 'Anonymous')
-                with get_db() as conn:
-                    conn.execute('INSERT INTO scores (username, score) VALUES (?, ?)',
-                               (username, session.get('score', 0)))
-                    conn.commit()
-            
-            return jsonify({
-                'correct': False,
-                'answer': f"**{current_artist}** - {current_song}",
-                'score': session.get('score', 0),
-                'questions_answered': session.get('questions_answered', 0)
-            })
+        if not current_song or not current_artist:
+            return jsonify({'error': 'No song in play'}), 400
         
-        # Clean both guess and correct answer
-        guess = clean_text(guess).lower()  # Convert to lowercase immediately
-        correct_artist = clean_text(current_artist).lower()  # Convert to lowercase immediately
+        # Initialize response
+        response = {
+            'correct': False,
+            'message': '',
+            'correct_answer': {
+                'song': current_song,
+                'artist': current_artist
+            }
+        }
         
-        # Check if the guess matches or is a substring (if longer than 3 chars)
-        is_correct = (guess == correct_artist or 
-                     (len(guess) > 3 and (guess in correct_artist or 
-                                        correct_artist in guess)))
+        # Check if answer is correct (case insensitive)
+        if guess.lower() == current_song.lower():
+            response['correct'] = True
+            response['message'] = "Correct!"
+            session['score'] = session.get('score', 0) + 1
+        else:
+            response['message'] = "Incorrect."
         
-        # Update score in session
-        session['score'] = session.get('score', 0) + (1 if is_correct else 0)
+        # Increment questions answered
         session['questions_answered'] = session.get('questions_answered', 0) + 1
         
-        # If game is over (after 6 questions), save score
-        if session.get('questions_answered', 0) >= 6:
-            username = session.get('username', 'Anonymous')
-            with get_db() as conn:
-                conn.execute('INSERT INTO scores (username, score) VALUES (?, ?)',
-                           (username, session.get('score', 0)))
-                conn.commit()
+        # Add score to response
+        response['score'] = session.get('score', 0)
+        response['total'] = session.get('questions_answered', 0)
         
-        return jsonify({
-            'correct': is_correct,
-            'answer': f"**{current_artist}** - {current_song}",
-            'score': session.get('score', 0),
-            'questions_answered': session.get('questions_answered', 0)
-        })
+        # Check if game is over
+        if session.get('questions_answered', 0) >= 6:
+            response['game_over'] = True
+            
+            # Save score to leaderboard
+            username = session.get('username', 'Anonymous')
+            with get_db() as db:
+                db.execute('INSERT INTO scores (username, score) VALUES (?, ?)',
+                          (username, session.get('score', 0)))
+                db.commit()
+            
+            # Clear game state but keep username
+            username = session.get('username')
+            session.clear()
+            session['username'] = username
+        
+        return jsonify(response)
+        
     except Exception as e:
-        logger.error(f"Error in check_answer: {str(e)}")
+        logger.error(f"Error checking answer: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/leaderboard')
@@ -297,6 +304,13 @@ def set_username():
     username = request.json.get('username', 'Anonymous')
     session['username'] = username
     return jsonify({'success': True})
+
+@app.route('/check-session')
+def check_session():
+    """Check if user has an active session."""
+    return jsonify({
+        'username': session.get('username', None)
+    })
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))

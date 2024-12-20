@@ -227,7 +227,55 @@
                 });
             }
         });
+
+        function loadNewSong() {
+            fetch('/new-song')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+                    if (currentAudio) {
+                        currentAudio.pause();
+                    }
+                    currentAudio = new Audio(data.preview_url);
+                    currentAudio.addEventListener('ended', () => {
+                        document.querySelector('#playButton i').className = 'fas fa-play';
+                    });
+                })
+                .catch(error => {
+                    console.error('Error loading song:', error);
+                });
+        }
         
+        document.getElementById('playButton').addEventListener('click', () => {
+            if (currentAudio) {
+                if (currentAudio.paused) {
+                    currentAudio.play()
+                    .then(() => {
+                        document.querySelector('#playButton i').className = 'fas fa-pause';
+                    })
+                    .catch(error => {
+                        console.error('Error playing audio:', error);
+                    });
+                } else {
+                    currentAudio.pause();
+                    document.querySelector('#playButton i').className = 'fas fa-play';
+                }
+            }
+        });
+
+        // Auto-start game if username is already set (after reload)
+        fetch('/check-session')
+            .then(response => response.json())
+            .then(data => {
+                if (data.username) {
+                    document.getElementById('username-container').style.display = 'none';
+                    document.getElementById('game-container').style.display = 'block';
+                    loadNewSong();
+                }
+            });
+
         // Next song button handler
         document.getElementById('nextSongButton').addEventListener('click', () => {
             // Don't load new song if game is over
@@ -239,123 +287,77 @@
             resultModal.hide();
         });
 
-        function loadNewSong() {
-            if (total >= MAX_SONGS) {
-                showGameOver();
-                return;
-            }
-            
-            fetch('/new-song')
-                .then(response => response.json())
-                .then(data => {
-                    if (currentAudio) {
-                        currentAudio.pause();
-                        currentAudio = null;
-                    }
-                    currentAudio = new Audio(data.preview_url);
-                    currentAudio.addEventListener('ended', () => {
-                        document.querySelector('#playButton i').className = 'fas fa-play';
-                    });
-                });
-        }
-        
-        document.getElementById('playButton').addEventListener('click', () => {
-            if (currentAudio) {
-                if (currentAudio.paused) {
-                    currentAudio.play();
-                    document.querySelector('#playButton i').className = 'fas fa-pause';
-                } else {
-                    currentAudio.pause();
-                    document.querySelector('#playButton i').className = 'fas fa-play';
-                }
-            }
-        });
-        
-        document.getElementById('answer-input').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                document.getElementById('submitButton').click();
-            }
-        });
-
         function showGameOver() {
-            const modalResult = document.getElementById('modalResult');
-            const lastAnswer = modalResult.innerHTML; // Save the last answer
+            // Stop any playing audio
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio = null;
+            }
             
-            // Show the game over screen after a short delay to let user see the last answer
-            setTimeout(() => {
-                modalResult.innerHTML = `
-                    <h3 class="mb-4">Game Over!</h3>
-                    <p class="modal-response">Final Score: ${score}/${MAX_SONGS}</p>
-                    ${lastAnswer}  <!-- Show the last answer -->
-                `;
-                
-                // Add play again button
-                const playAgainButton = document.createElement('button');
-                playAgainButton.className = 'btn btn-primary mt-3';
-                playAgainButton.textContent = 'Play Again';
-                playAgainButton.onclick = () => window.location.reload();
-                document.querySelector('.modal-body').appendChild(playAgainButton);
-                
-                // Update leaderboard
-                updateLeaderboard();
-            }, 2000); // Wait 2 seconds before showing game over screen
+            // Hide game controls
+            document.getElementById('playButton').style.display = 'none';
+            document.getElementById('submitButton').style.display = 'none';
+            document.getElementById('answer-input').style.display = 'none';
+            document.getElementById('nextSongButton').style.display = 'none';
+            
+            const modalResult = document.getElementById('modalResult');
+            modalResult.innerHTML = `
+                <h3 class="mb-4">Game Over!</h3>
+                <p class="modal-response">Final Score: ${score}/${MAX_SONGS}</p>
+                <button onclick="window.location.reload()" class="btn btn-primary mt-3">Play Again</button>
+            `;
+            
+            // Update leaderboard
+            updateLeaderboard();
         }
         
         // Update submit button handler
         document.getElementById('submitButton').addEventListener('click', () => {
             const submitButton = document.getElementById('submitButton');
             const answerInput = document.getElementById('answer-input');
+            const guess = answerInput.value.trim();
             
-            // Disable button and input while checking
+            // Disable submit button while checking
             submitButton.disabled = true;
-            answerInput.disabled = true;
             
             fetch('/check-answer', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    guess: answerInput.value
-                })
+                body: JSON.stringify({ guess: guess })
             })
             .then(response => response.json())
             .then(data => {
-                if (data.error) {
-                    throw new Error(data.error);
-                }
-                
-                const modalResult = document.getElementById('modalResult');
-                const response = data.correct ? 
-                    `${getRandomResponse(correctResponses)}<br>` :
-                    `${getRandomResponse(incorrectResponses)}<br>`;
-                
-                // Convert markdown bold to HTML bold
-                const answer = data.answer.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-                modalResult.innerHTML = `
-                    <p class="modal-response">${response}</p>
-                    <p class="modal-answer">The correct answer was: ${answer}</p>
-                `;
-                
+                // Update score display
                 score = data.score;
-                total = data.questions_answered;
+                total = data.total;
                 updateScore();
                 
-                // Clear and re-enable input
-                answerInput.value = '';
-                answerInput.disabled = false;
-                submitButton.disabled = false;
-                
+                // Show feedback
+                const modalResult = document.getElementById('modalResult');
+                modalResult.innerHTML = `
+                    <p class="modal-response">${data.message}</p>
+                    <p class="modal-answer">Correct Answer: "${data.correct_answer.song}" by <strong>${data.correct_answer.artist}</strong></p>
+                `;
                 resultModal.show();
                 
-                if (total >= MAX_SONGS) {
-                    showGameOver();
+                // Clear input
+                answerInput.value = '';
+                
+                // Re-enable submit button
+                submitButton.disabled = false;
+                
+                // If game is over, show game over screen after showing the answer
+                if (data.game_over) {
+                    setTimeout(() => {
+                        showGameOver();
+                    }, 2000);  // Wait 2 seconds to show the answer
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
                 submitButton.disabled = false;
-                answerInput.disabled = false;
             });
         });
         
