@@ -304,7 +304,7 @@
             modalResult.innerHTML = `
                 <h3 class="mb-4">Game Over!</h3>
                 <p class="modal-response">Final Score: ${score}/${MAX_SONGS}</p>
-                <button onclick="window.location.reload()" class="btn btn-primary mt-3">Play Again</button>
+                <button onclick="window.location.href = window.location.href + '?t=' + new Date().getTime()" class="btn btn-primary mt-3">Play Again</button>
             `;
             
             // Update leaderboard
