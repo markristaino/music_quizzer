@@ -18,7 +18,15 @@ logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-app.secret_key = os.urandom(24)  # for session management
+app.secret_key = 'your-fixed-secret-key-123'  # Change this to any fixed string
+
+# Add session configuration
+app.config.update(
+    SESSION_COOKIE_SECURE=False,  # Set to True if using HTTPS
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    PERMANENT_SESSION_LIFETIME=1800  # 30 minutes
+)
 
 # Initialize Deezer client
 client = deezer.Client()
@@ -145,6 +153,8 @@ def get_preview_url(song, artist):
 def get_new_song():
     """Get a new song for the quiz."""
     try:
+        logger.info(f"Session before new song: {dict(session)}")
+        
         if song_data is None:
             init_song_data()
         
@@ -156,6 +166,8 @@ def get_new_song():
             # Store current song info in session
             session['current_song'] = song['Song']
             session['current_artist'] = song['Artist']
+            
+            logger.info(f"Session after new song: {dict(session)}")
             
             return jsonify({
                 'preview_url': preview_url
@@ -208,6 +220,8 @@ def index():
 def new_song():
     """Get a new song for the quiz."""
     try:
+        logger.info(f"Session before new song: {dict(session)}")
+        
         if song_data is None:
             init_song_data()
         
@@ -219,6 +233,8 @@ def new_song():
             # Store current song info in session
             session['current_song'] = song['Song']
             session['current_artist'] = song['Artist']
+            
+            logger.info(f"Session after new song: {dict(session)}")
             
             return jsonify({
                 'preview_url': preview_url
@@ -233,11 +249,14 @@ def new_song():
 def check_answer():
     """Check if the answer is correct."""
     try:
+        logger.info(f"Session before check: {dict(session)}")
+        
         guess = request.json.get('guess', '').strip()
         current_song = session.get('current_song')
         current_artist = session.get('current_artist')
         
         if not current_song or not current_artist:
+            logger.error("No song in session")
             return jsonify({'error': 'No song in play'}), 400
         
         # Initialize response
@@ -280,6 +299,9 @@ def check_answer():
             username = session.get('username')
             session.clear()
             session['username'] = username
+        
+        logger.info(f"Session after check: {dict(session)}")
+        logger.info(f"Response: {response}")
         
         return jsonify(response)
         
