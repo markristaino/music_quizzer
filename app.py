@@ -197,6 +197,10 @@ def new_song():
     if not init_song_data():
         return jsonify({"error": "Song database not available"}), 500
         
+    # Don't load new song if game is over
+    if session.get('questions_answered', 0) >= 6:
+        return jsonify({"error": "Game is over"}), 400
+        
     song_data = get_new_song()
     if not song_data:
         return jsonify({"error": "Could not get new song"}), 500
@@ -238,13 +242,13 @@ def check_answer():
             })
         
         # Clean both guess and correct answer
-        guess = clean_text(guess)
-        correct_artist = clean_text(current_artist)
+        guess = clean_text(guess).lower()  # Convert to lowercase immediately
+        correct_artist = clean_text(current_artist).lower()  # Convert to lowercase immediately
         
         # Check if the guess matches or is a substring (if longer than 3 chars)
-        is_correct = (guess.lower() == correct_artist.lower() or 
-                     (len(guess) > 3 and (guess.lower() in correct_artist.lower() or 
-                                        correct_artist.lower() in guess.lower())))
+        is_correct = (guess == correct_artist or 
+                     (len(guess) > 3 and (guess in correct_artist or 
+                                        correct_artist in guess)))
         
         # Update score in session
         session['score'] = session.get('score', 0) + (1 if is_correct else 0)

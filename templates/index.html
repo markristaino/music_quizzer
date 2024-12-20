@@ -228,13 +228,17 @@
             }
         });
         
+        // Next song button handler
         document.getElementById('nextSongButton').addEventListener('click', () => {
-            resultModal.hide();
-            document.getElementById('answer-input').value = '';
-            document.getElementById('answer-input').disabled = false;
+            // Don't load new song if game is over
+            if (total >= MAX_SONGS) {
+                showGameOver();
+                return;
+            }
             loadNewSong();
+            resultModal.hide();
         });
-        
+
         function loadNewSong() {
             if (total >= MAX_SONGS) {
                 showGameOver();
@@ -277,6 +281,9 @@
             const modalResult = document.getElementById('modalResult');
             const lastAnswer = modalResult.innerHTML; // Save the last answer
             
+            // Hide the next song button since game is over
+            document.getElementById('nextSongButton').style.display = 'none';
+            
             // Show the game over screen after a short delay to let user see the last answer
             setTimeout(() => {
                 modalResult.innerHTML = `
@@ -289,11 +296,47 @@
                 const playAgainButton = document.createElement('button');
                 playAgainButton.className = 'btn btn-primary mt-3';
                 playAgainButton.textContent = 'Play Again';
-                playAgainButton.onclick = () => {
-                    window.location.reload();
-                };
+                playAgainButton.onclick = resetGame;
                 document.querySelector('.modal-body').appendChild(playAgainButton);
+                
+                // Disable the submit button and input
+                document.getElementById('submitButton').disabled = true;
+                document.getElementById('answer-input').disabled = true;
+                document.getElementById('playButton').disabled = true;
+                
+                // Stop any playing audio
+                if (currentAudio) {
+                    currentAudio.pause();
+                    currentAudio = null;
+                }
+                
+                // Update leaderboard
+                updateLeaderboard();
             }, 2000); // Wait 2 seconds before showing game over screen
+        }
+        
+        function resetGame() {
+            // Reset game state
+            score = 0;
+            total = 0;
+            currentAudio = null;
+            updateScore();
+            
+            // Re-enable all controls
+            document.getElementById('submitButton').disabled = false;
+            document.getElementById('answer-input').disabled = false;
+            document.getElementById('playButton').disabled = false;
+            document.getElementById('nextSongButton').style.display = 'block';
+            
+            // Clear input and feedback
+            document.getElementById('answer-input').value = '';
+            document.getElementById('feedback').innerHTML = '';
+            
+            // Load first song
+            loadNewSong();
+            
+            // Hide the modal
+            resultModal.hide();
         }
         
         // Update submit button handler
