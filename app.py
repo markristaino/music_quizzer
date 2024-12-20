@@ -36,6 +36,35 @@ song_data = None
 recent_songs = set()  # Keep track of recently played songs
 MAX_RECENT_SONGS = 100  # How many songs to remember
 
+CORRECT_RESPONSES = [
+    "Correct! That was pure metal—like your amp cranked all the way to eleven! ",
+    "Fuck yeah! You’ve got the rhythm of a double-kick drum solo! ",
+    "You nailed it! That answer’s sharper than a spiked leather jacket! ",
+    "Right answer! You’re shredding harder than a guitarist at a headbanger’s ball! ",
+    "Bravo! That was so metal, it melted the stage! ",
+    "Nice job! That answer was heavier than a doom metal riff! ",
+    "You got it! You’re the lead singer in the symphony of correct answers! ",
+    "Correct! You hit that note perfectly, like a power ballad’s soaring chorus! ",
+    "Well done! That answer’s more solid than a wall of Marshall stacks! ",
+    "Spot on! You’ve got the precision of a perfectly tuned guitar string! "
+]
+
+INCORRECT_RESPONSES = [
+    "Wrong! That answer was flatter than a deflated stage prop. ",
+    "Oops! That guess missed the mark like a bad guitar solo at an encore. ",
+    "Not quite! That was about as metal as a plastic tambourine. ",
+    "Incorrect! That guess went off the rails like a runaway tour bus! ",
+    "Nope! That was heavier than metal—but not in a good way. ",
+    "Oops! That answer fell harder than a bass drop in a mosh pit. ",
+    "Wrong answer! That guess was more offbeat than a drummer without a metronome. ",
+    "Close, but that answer was more squeak than screeching guitar. ",
+    "Not quite! That was softer than a metal ballad at an acoustic set. ",
+    "Incorrect! That guess was about as tough as a broken guitar string. "
+]
+
+def getRandomResponse(responses):
+    return random.choice(responses)
+
 def init_song_data():
     """Initialize song data from CSV, with error handling"""
     global song_data
@@ -269,10 +298,10 @@ def check_answer():
         # Check if answer is correct (case insensitive)
         if guess.lower() == current_artist.lower():
             response['correct'] = True
-            response['message'] = "Correct!"
+            response['message'] = getRandomResponse(CORRECT_RESPONSES)
             session['score'] = session.get('score', 0) + 1
         else:
-            response['message'] = "Incorrect."
+            response['message'] = getRandomResponse(INCORRECT_RESPONSES)
         
         # Increment questions answered
         session['questions_answered'] = session.get('questions_answered', 0) + 1
