@@ -249,14 +249,11 @@ def new_song():
 def check_answer():
     """Check if the answer is correct."""
     try:
-        logger.info(f"Session before check: {dict(session)}")
-        
         guess = request.json.get('guess', '').strip()
         current_song = session.get('current_song')
         current_artist = session.get('current_artist')
         
         if not current_song or not current_artist:
-            logger.error("No song in session")
             return jsonify({'error': 'No song in play'}), 400
         
         # Initialize response
@@ -270,7 +267,7 @@ def check_answer():
         }
         
         # Check if answer is correct (case insensitive)
-        if guess.lower() == current_song.lower():
+        if guess.lower() == current_artist.lower():
             response['correct'] = True
             response['message'] = "Correct!"
             session['score'] = session.get('score', 0) + 1
@@ -299,9 +296,6 @@ def check_answer():
             username = session.get('username')
             session.clear()
             session['username'] = username
-        
-        logger.info(f"Session after check: {dict(session)}")
-        logger.info(f"Response: {response}")
         
         return jsonify(response)
         
