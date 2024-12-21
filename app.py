@@ -35,6 +35,94 @@ client = deezer.Client()
 song_data = None
 recent_songs = set()  # Keep track of recently played songs
 MAX_RECENT_SONGS = 100  # How many songs to remember
+all_decades = []  # Store unique decades
+MAX_SONGS = 6  # Maximum number of songs per game
+
+# Genre mapping
+GENRE_MAPPING = {
+    'rock': ['rock', 'alternative rock', 'classic rock', 'hard rock', 'indie rock', 'progressive rock', 
+             'psychedelic rock', 'art rock', 'garage rock', 'southern rock', 'rock-and-roll', 'rockabilly',
+             'rock and roll', 'album rock', 'modern rock', 'soft rock', 'yacht rock', 'dance rock',
+             'roots rock', 'post-grunge', 'modern hard rock', 'modern alternative rock', 'baroque pop',
+             'glam rock', 'progressive metal', 'rock en espanol', 'latin rock', 'mexican classic rock',
+             'piano rock', 'surf punk', 'indie surf', 'modern folk rock', 'modern power pop', 'new wave'],
+             
+    'pop': ['pop', 'pop rock', 'indie pop', 'synth-pop', 'dance pop', 'electropop', 'dream pop',
+            'chamber pop', 'sophisti-pop', 'art pop', 'k-pop', 'j-pop', 'power pop', 'indie poptimism',
+            'pop dance', 'pop folk', 'pop nacional', 'pop soul', 'pop emo', 'pop punk', 'pop r&b',
+            'pop rap', 'canadian pop', 'uk pop', 'latin pop', 'adult standards', 'neo mellow',
+            'contemporary vocal jazz', 'vocal jazz', 'show tunes', 'easy listening'],
+            
+    'electronic': ['electronic', 'electronica', 'edm', 'house', 'techno', 'trance', 'dubstep', 'ambient',
+                  'drum and bass', 'electro', 'electronic trap', 'electro house', 'progressive house',
+                  'deep house', 'tech house', 'tropical house', 'future bass', 'complextro', 'big room',
+                  'brostep', 'filthstep', 'future garage', 'intelligent dance music', 'neo-synthpop',
+                  'alternative dance', 'dance-punk', 'indietronica', 'canadian electronic', 'slap house',
+                  'filter house', 'disco house', 'nu disco', 'compositional ambient', 'ambient pop'],
+                  
+    'hip hop': ['hip hop', 'rap', 'trap', 'gangster rap', 'underground hip hop', 'conscious hip hop',
+                'alternative hip hop', 'east coast hip hop', 'west coast rap', 'southern hip hop',
+                'atlanta hip hop', 'chicago rap', 'detroit hip hop', 'memphis rap', 'miami hip hop',
+                'houston rap', 'jazz rap', 'political hip hop', 'emo rap', 'cloud rap', 'melodic rap',
+                'rage rap', 'atl hip hop', 'atl trap', 'canadian hip hop', 'canadian trap',
+                'country rap', 'dfw rap', 'latin hip hop', 'lgbtq+ hip hop', 'plugg', 'pluggnb'],
+                
+    'r&b': ['r&b', 'soul', 'funk', 'contemporary r&b', 'neo soul', 'motown', 'quiet storm',
+            'new jack swing', 'gospel', 'southern soul', 'chicago soul', 'memphis soul', 'philly soul',
+            'northern soul', 'soul blues', 'soul jazz', 'funk rock', 'funk metal', 'p funk',
+            'synth funk', 'funk pop', 'jazz funk', 'alternative r&b', 'british soul', 'indie soul',
+            'trap soul', 'urban contemporary'],
+            
+    'metal': ['metal', 'heavy metal', 'thrash metal', 'death metal', 'black metal', 'doom metal',
+              'power metal', 'progressive metal', 'folk metal', 'gothic metal', 'industrial metal',
+              'symphonic metal', 'alternative metal', 'nu metal', 'metalcore', 'melodic metalcore',
+              'canadian metal', 'neo classical metal', 'old school thrash', 'prog metal',
+              'uk metalcore'],
+              
+    'jazz': ['jazz', 'swing', 'bebop', 'big band', 'jazz fusion', 'cool jazz', 'hard bop',
+             'contemporary jazz', 'smooth jazz', 'latin jazz', 'modal jazz', 'post-bop', 'free jazz',
+             'jazz blues', 'jazz funk', 'jazz pop', 'jazz rap', 'jazz trio', 'jazz trumpet',
+             'new orleans jazz', 'dixieland', 'smooth saxophone'],
+             
+    'folk': ['folk', 'folk rock', 'indie folk', 'contemporary folk', 'traditional folk',
+             'american folk revival', 'folk-pop', 'boston folk', 'stomp and holler',
+             'irish singer-songwriter', 'singer-songwriter', 'singer-songwriter pop'],
+             
+    'blues': ['blues', 'chicago blues', 'delta blues', 'electric blues', 'country blues',
+              'contemporary blues', 'blues rock', 'modern blues', 'modern blues rock',
+              'piano blues', 'punk blues', 'soul blues'],
+              
+    'classical': ['classical', 'orchestra', 'chamber music', 'symphony', 'opera', 'baroque',
+                  'romantic', 'contemporary classical', 'minimalism', 'modern classical',
+                  'orchestral', 'choral', 'classical performance', 'classical era',
+                  'early romantic era', 'late romantic era', 'post-romantic era',
+                  'british contemporary classical', 'polish classical', 'japanese classical',
+                  'classical cello', 'classical tenor', 'early music', 'impressionism',
+                  'neo-classical', 'orchestral performance', 'orchestral soundtrack'],
+                  
+    'world': ['world', 'latin', 'reggae', 'ska', 'afrobeat', 'brazilian', 'caribbean',
+              'cumbia', 'salsa', 'samba', 'bossa nova', 'reggaeton', 'tropical',
+              'urbano latino', 'reggaeton flow', 'reggaeton chileno', 'reggaeton colombiano',
+              'roots reggae', 'reggae fusion', 'ska punk', 'ska mexicano'],
+              
+    'punk': ['punk', 'punk rock', 'pop punk', 'hardcore punk', 'post-punk', 'art punk',
+             'skate punk', 'chicago punk', 'canadian punk', 'socal pop punk',
+             'chicago hardcore', 'emo', 'screamo']
+}
+
+# Create reverse mapping for quick lookups
+GENRE_REVERSE_MAPPING = {}
+for parent, children in GENRE_MAPPING.items():
+    for child in children:
+        GENRE_REVERSE_MAPPING[child] = parent
+
+def map_to_parent_genre(genre):
+    """Map a subgenre to its parent genre."""
+    genre = genre.lower().strip()
+    for parent, subgenres in GENRE_MAPPING.items():
+        if genre == parent or genre in subgenres:
+            return parent
+    return genre
 
 CORRECT_RESPONSES = [
     "Correct! That was pure metal—like your amp cranked all the way to eleven! ",
@@ -67,22 +155,37 @@ def getRandomResponse(responses):
 
 def init_song_data():
     """Initialize song data from CSV, with error handling"""
-    global song_data
+    global song_data, all_decades
     try:
-        # Try loading the updated Spotify data first
+        # Try loading the updated Spotify data
         try:
-            df = pd.read_csv('updated_spotify_data.csv', encoding='utf-8')
+            df = pd.read_csv('updated_spotify_data_new.csv', encoding='utf-8')
             logger.info("Loaded updated Spotify dataset")
-        except:
+            
+            # Add Decade column if it doesn't exist
+            if 'Decade' not in df.columns and 'Year' in df.columns:
+                df['Decade'] = (df['Year'] // 10) * 10
+                df['Decade'] = df['Decade'].astype(str) + 's'
+                logger.info("Created Decade column from Year")
+            
+        except Exception as e:
+            logger.error(f"Failed to load updated Spotify data: {str(e)}")
             # Fall back to original Billboard data if Spotify data not available
             df = pd.read_csv('billboard_lyrics_1964-2015.csv', encoding='latin1')
             logger.info("Loaded original Billboard dataset")
         
         song_data = df
+        
+        # Get unique decades without 's' suffix for the dropdown
+        all_decades = sorted(list(set(int(d.replace('s', '')) for d in df['Decade'].astype(str).unique())))
+        logger.info(f"Available decades in data: {all_decades}")
+        
         logger.info(f"Loaded {len(song_data)} songs")
+        logger.info(f"Found {len(GENRE_MAPPING)} parent genres and {len(all_decades)} decades")
         return True
     except Exception as e:
         logger.error(f"Error loading song data: {str(e)}")
+        song_data = None
         return False
 
 def clean_text(text):
@@ -186,41 +289,103 @@ def get_preview_url(song, artist):
     logger.warning("No preview URL found after trying all strategies")
     return None
 
-def get_new_song():
+def get_new_song(selected_genres=None, selected_decades=None, max_attempts=5):
     """Get a new song for the quiz."""
+    global song_data, recent_songs
+    
     try:
-        logger.info("=== Starting new song request ===")
-        logger.info(f"Session before new song: {dict(session)}")
+        logger.info(f"Selected genres: {selected_genres or 'all'}")
+        logger.info(f"Selected decades: {selected_decades or 'all'}")
         
-        if song_data is None:
-            logger.info("Initializing song data")
-            init_song_data()
+        # Filter songs based on selected genres and decades
+        filtered_songs = song_data.copy()
         
-        # Simple random selection
-        song = song_data.sample(n=1).iloc[0]
-        logger.info(f"Selected song: {song['Song']} by {song['Artist']}")
+        if selected_genres:
+            # Handle multiple genres (match if any genre matches)
+            genre_mask = filtered_songs['Genres'].fillna('').apply(
+                lambda x: any(map_to_parent_genre(genre.strip()) in selected_genres 
+                            for genre in str(x).lower().split(','))
+            )
+            filtered_songs = filtered_songs[genre_mask]
+            logger.info(f"After genre filter: {len(filtered_songs)} songs")
         
-        preview_url = get_preview_url(song['Song'], song['Artist'])
-        logger.info(f"Retrieved preview URL: {preview_url}")
+        if selected_decades:
+            # Add 's' suffix if not present
+            decades = [f"{d}s" if not d.endswith('s') else d for d in selected_decades]
+            filtered_songs = filtered_songs[filtered_songs['Decade'].isin(decades)]
+            logger.info(f"After decade filter: {len(filtered_songs)} songs")
         
-        if preview_url:
-            # Store current song info in session
-            session['current_song'] = song['Song']
-            session['current_artist'] = song['Artist']
+        if len(filtered_songs) == 0:
+            selected_filters = []
+            if selected_genres:
+                selected_filters.append("genres: " + ", ".join(selected_genres))
+            if selected_decades:
+                selected_filters.append("decades: " + ", ".join(selected_decades))
+            filter_text = " and ".join(selected_filters)
             
-            logger.info(f"Session after new song: {dict(session)}")
-            logger.info("=== Completed new song request successfully ===")
-            
+            logger.error(f"No songs match the filters: {filter_text}")
             return jsonify({
-                'preview_url': preview_url
+                'error': f'No songs found matching your selected {filter_text}. Try different filters!'
             })
+        
+        # Try to find a song with a preview URL
+        for attempt in range(max_attempts):
+            # Remove recently played songs
+            available_songs = filtered_songs[~filtered_songs.index.isin(recent_songs)]
             
-        logger.warning("No preview available for selected song")
-        return jsonify({'error': 'No preview available'}), 404
+            if len(available_songs) == 0:
+                # If no songs available with current filters, reset recent songs
+                recent_songs.clear()
+                available_songs = filtered_songs
+                logger.info("Reset recent songs")
+            
+            # Select a random song
+            song = available_songs.sample(n=1).iloc[0]
+            logger.info(f"Attempt {attempt + 1}: Selected song: {song['Artist']} - {song['Song']}")
+            
+            # Try to get preview URL
+            preview_url = get_preview_url(song['Song'], song['Artist'])
+            if preview_url:
+                # Add to recent songs
+                recent_songs.add(song.name)
+                if len(recent_songs) > MAX_RECENT_SONGS:
+                    recent_songs.pop()
+                
+                return jsonify({
+                    'preview_url': preview_url,
+                    'artist': song['Artist'],
+                    'song': song['Song']
+                })
+            else:
+                logger.info(f"No preview URL found, trying another song...")
+        
+        # If we get here, we couldn't find a song with preview after max attempts
+        logger.error("Could not find any songs with previews after multiple attempts")
+        return jsonify({
+            'error': 'Could not find a song with preview. Please try different filters.'
+        })
         
     except Exception as e:
         logger.error(f"Error getting new song: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': str(e)})
+
+@app.route('/update_filters', methods=['POST'])
+def update_filters():
+    """Update the genre and decade filters."""
+    try:
+        data = request.get_json()
+        # Convert genre names to lowercase for consistent matching
+        selected_genres = [g.lower() for g in data.get('genres', [])]
+        selected_decades = data.get('decades', [])
+        
+        logger.info(f"Updating filters - Genres: {selected_genres}, Decades: {selected_decades}")
+        
+        # Apply filters and get a new song
+        return get_new_song(selected_genres, selected_decades)
+        
+    except Exception as e:
+        logger.error(f"Error updating filters: {str(e)}")
+        return jsonify({'error': str(e)})
 
 # Database setup
 def init_db():
@@ -257,103 +422,76 @@ def add_header(response):
 def index():
     """Render the main page."""
     if not init_song_data():
-        return render_template('error.html', error_message="Could not load song database"), 500
-    return render_template('index.html')
+        return render_template('error.html', message="Failed to load song data")
+    
+    # Format genres and decades nicely for display
+    formatted_genres = [g.title() for g in GENRE_MAPPING.keys()]  # Use parent genres from mapping
+    formatted_decades = [f"{d}s" for d in all_decades]  # Add 's' to decades
+    
+    return render_template('index.html', 
+                         genres=formatted_genres,
+                         decades=formatted_decades)
 
 @app.route('/new-song')
 def new_song():
-    """Get a new song for the quiz."""
-    try:
-        logger.info("=== Starting new song request ===")
-        logger.info(f"Session before new song: {dict(session)}")
-        
-        if song_data is None:
-            logger.info("Initializing song data")
-            init_song_data()
-        
-        # Simple random selection
-        song = song_data.sample(n=1).iloc[0]
-        logger.info(f"Selected song: {song['Song']} by {song['Artist']}")
-        
-        preview_url = get_preview_url(song['Song'], song['Artist'])
-        logger.info(f"Retrieved preview URL: {preview_url}")
-        
-        if preview_url:
-            # Store current song info in session
-            session['current_song'] = song['Song']
-            session['current_artist'] = song['Artist']
-            
-            logger.info(f"Session after new song: {dict(session)}")
-            logger.info("=== Completed new song request successfully ===")
-            
-            return jsonify({
-                'preview_url': preview_url
-            })
-            
-        logger.warning("No preview available for selected song")
-        return jsonify({'error': 'No preview available'}), 404
-        
-    except Exception as e:
-        logger.error(f"Error getting new song: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+    """Get a new song."""
+    return get_new_song()
 
 @app.route('/check-answer', methods=['POST'])
 def check_answer():
     """Check if the answer is correct."""
     try:
-        guess = request.json.get('guess', '').strip()
-        current_song = session.get('current_song')
-        current_artist = session.get('current_artist')
+        data = request.get_json()
+        user_answer = data.get('answer', '').lower().strip()
+        correct_artist = data.get('artist', '').lower().strip()
+        correct_song = data.get('song', '').lower().strip()
         
-        if not current_song or not current_artist:
-            return jsonify({'error': 'No song in play'}), 400
+        logger.info(f"Checking answer: {user_answer}")
+        logger.info(f"Correct answer: {correct_song} by {correct_artist}")
         
-        # Initialize response
-        response = {
-            'correct': False,
-            'message': '',
-            'correct_answer': {
-                'song': current_song,
-                'artist': current_artist
-            }
-        }
+        # Check if either the song or artist name is in the answer
+        is_correct = correct_song in user_answer or correct_artist in user_answer
         
-        # Check if answer is correct (case insensitive)
-        if guess.lower() == current_artist.lower():
-            response['correct'] = True
-            response['message'] = getRandomResponse(CORRECT_RESPONSES)
-            session['score'] = session.get('score', 0) + 1
+        # Update session scores
+        session['score'] = session.get('score', 0) + (1 if is_correct else 0)
+        session['total'] = session.get('total', 0) + 1
+        
+        if is_correct:
+            message = random.choice(CORRECT_RESPONSES)
         else:
-            response['message'] = getRandomResponse(INCORRECT_RESPONSES)
-        
-        # Increment questions answered
-        session['questions_answered'] = session.get('questions_answered', 0) + 1
-        
-        # Add score to response
-        response['score'] = session.get('score', 0)
-        response['total'] = session.get('questions_answered', 0)
+            message = random.choice(INCORRECT_RESPONSES)
+            message += f" The correct answer was '{correct_song}' by {correct_artist}."
         
         # Check if game is over
-        if session.get('questions_answered', 0) >= 6:
-            response['game_over'] = True
-            
-            # Save score to leaderboard
-            username = session.get('username', 'Anonymous')
-            with get_db() as db:
-                db.execute('INSERT INTO scores (username, score) VALUES (?, ?)',
-                          (username, session.get('score', 0)))
-                db.commit()
+        game_over = session.get('total', 0) >= MAX_SONGS
+        if game_over:
+            # Save score to leaderboard if username exists
+            username = session.get('username')
+            if username:
+                with get_db() as db:
+                    db.execute('INSERT INTO scores (username, score) VALUES (?, ?)',
+                              (username, session.get('score', 0)))
+                    db.commit()
             
             # Clear game state but keep username
             username = session.get('username')
             session.clear()
             session['username'] = username
         
-        return jsonify(response)
+        return jsonify({
+            'correct': is_correct,
+            'message': message,
+            'score': session.get('score', 0),
+            'total': session.get('total', 0),
+            'game_over': game_over
+        })
         
     except Exception as e:
         logger.error(f"Error checking answer: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({
+            'error': 'Error checking answer',
+            'message': str(e)
+        })
 
 @app.route('/leaderboard')
 def leaderboard():
@@ -377,15 +515,27 @@ def leaderboard():
 
 @app.route('/set_username', methods=['POST'])
 def set_username():
-    username = request.json.get('username', 'Anonymous')
-    session['username'] = username
-    return jsonify({'success': True})
+    """Set the username in the session."""
+    try:
+        data = request.get_json()
+        username = data.get('username')
+        if username:
+            session.clear()  # Clear entire session
+            session['username'] = username
+            session['score'] = 0
+            return jsonify({'status': 'success'})
+        return jsonify({'error': 'No username provided'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/check-session')
 def check_session():
-    """Check if user has an active session."""
+    """Check if there's an active session."""
+    username = session.get('username')
+    
     return jsonify({
-        'username': session.get('username', None)
+        'has_session': bool(username),
+        'username': username
     })
 
 if __name__ == '__main__':

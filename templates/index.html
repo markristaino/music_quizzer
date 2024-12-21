@@ -20,6 +20,7 @@
     
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
     <style>
         body {
             background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
@@ -86,10 +87,143 @@
             color: #1e3c72;
             font-size: 1.3rem;
         }
+        /* Select2 Styles */
+        .select2-container {
+            width: 100% !important;
+        }
+        .select2-container .select2-selection--multiple {
+            min-height: 38px;
+            border: 1px solid #ced4da;
+            border-radius: 0.25rem;
+        }
+        .select2-container--default .select2-selection--multiple .select2-selection__choice {
+            background-color: #2a5298;
+            border: none;
+            color: white;
+            padding: 3px 8px;
+            margin: 3px;
+            border-radius: 3px;
+        }
+        .select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
+            color: white;
+            margin-right: 5px;
+        }
+        .select2-container--default .select2-selection--multiple .select2-selection__choice__remove:hover {
+            color: #ff9999;
+        }
+        .select2-dropdown {
+            border: 1px solid #ced4da;
+        }
+        .select2-container--default .select2-results__option--highlighted[aria-selected] {
+            background-color: #2a5298;
+        }
+        #error-message {
+            color: #842029;
+            background-color: #f8d7da;
+            border: 1px solid #f5c2c7;
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+            display: none;
+            text-align: center;
+            font-size: 1.1em;
+            font-weight: 500;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        #error-message.show {
+            display: block !important;
+        }
+        
+        #feedback {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 8px;
+            display: none;
+            font-size: 1.1em;
+            font-weight: 500;
+        }
+        
+        #feedback.correct {
+            color: #155724;
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+        }
+        
+        #feedback.incorrect {
+            color: #721c24;
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+        }
+        
+        #playAgainButton {
+            display: none;
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 1.1em;
+            background-color: #28a745;
+            border-color: #28a745;
+            color: white;
+        }
+        
+        #playAgainButton:hover {
+            background-color: #218838;
+            border-color: #1e7e34;
+        }
+        
+        #feedback.game-over {
+            background-color: #cce5ff;
+            border-color: #b8daff;
+            color: #004085;
+            font-size: 1.2em;
+            padding: 20px;
+        }
+        
+        #post-answer-buttons {
+            margin: 20px auto;
+            display: none;
+        }
+        
+        #post-answer-buttons .btn {
+            padding: 8px 20px;
+            font-weight: 500;
+        }
+        
+        #tryAgainButton {
+            display: none;
+            margin: 20px auto;
+            padding: 12px 30px;
+            font-size: 1.2em;
+            font-weight: 500;
+            background-color: #28a745;
+            border-color: #28a745;
+            color: white;
+        }
+        
+        #tryAgainButton:hover {
+            background-color: #218838;
+            border-color: #1e7e34;
+        }
+        
+        #nextQuestionButton {
+            background-color: #007bff;
+            border-color: #007bff;
+            color: white;
+        }
+        
+        #nextQuestionButton:hover {
+            background-color: #0056b3;
+            border-color: #0056b3;
+        }
+        
+        .input-group {
+            max-width: 500px;
+            margin: 0 auto;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="container mt-5">
         <div class="row justify-content-center">
             <div class="col-md-8 col-lg-6">
                 <div class="quiz-container text-center">
@@ -105,20 +239,49 @@
                     
                     <!-- Game container (initially hidden) -->
                     <div id="game-container" style="display: none;">
-                        <div class="mb-4">
+                        <h2 class="mb-4">Name That Artist! 🎵</h2>
+                        
+                        <!-- Add filter controls -->
+                        <div class="row mb-4">
+                            <div class="col-md-6 mb-3">
+                                <label for="genre-select" class="form-label">Select Genres</label>
+                                <select id="genre-select" class="form-control" multiple>
+                                    {% for genre in genres %}
+                                    <option value="{{ genre }}">{{ genre }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="decade-select" class="form-label">Select Decades</label>
+                                <select id="decade-select" class="form-control" multiple>
+                                    {% for decade in decades %}
+                                    <option value="{{ decade }}">{{ decade }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div id="error-message" class="mb-4"></div>
+                        <div id="feedback" class="mb-4"></div>
+                        
+                        <div class="d-flex justify-content-center align-items-center mb-4">
                             <button id="playButton" class="btn btn-play">
                                 <i class="fas fa-play"></i>
                             </button>
                         </div>
                         
-                        <div class="mb-3">
-                            <input type="text" id="answer-input" class="form-control" 
-                                   placeholder="Who's the artist?" autocomplete="off">
+                        <div class="input-group mb-3">
+                            <input type="text" id="answer-input" class="form-control" placeholder="Enter artist or song name...">
+                            <button id="submitButton" class="btn btn-primary">Submit Answer</button>
                         </div>
                         
-                        <button id="submitButton" class="btn btn-primary mb-3">Submit Answer</button>
+                        <div class="btn-group mb-3" role="group" style="display: none;" id="post-answer-buttons">
+                            <button id="nextQuestionButton" class="btn btn-primary">Next Question</button>
+                        </div>
                         
-                        <div id="feedback" class="feedback"></div>
+                        <button id="tryAgainButton" class="btn btn-primary" style="display: none;">Try Again</button>
+                        
+                        <button id="playAgainButton" class="btn">Play Again</button>
                     </div>
 
                     <!-- Leaderboard -->
@@ -146,6 +309,8 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script>
         let currentAudio = null;
         let score = 0;
@@ -153,6 +318,7 @@
         const MAX_SONGS = 6;
         const resultModal = new bootstrap.Modal(document.getElementById('resultModal'));
         let username = '';
+        let currentSong = null;
         
         // Fun response variations
         const correctResponses = [
@@ -229,72 +395,90 @@
         });
 
         function loadNewSong() {
-            console.log('Requesting new song...');
-            fetch('/new-song')
-                .then(response => {
-                    console.log('Response status:', response.status);
-                    return response.json();
+            console.log('Loading new song...');
+            
+            // Stop and cleanup any existing audio
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio.src = '';
+                currentAudio = null;
+            }
+            
+            // Reset UI state
+            $('#playButton i').removeClass('fa-pause').addClass('fa-play');
+            $('#playButton').hide();
+            $('#submitButton').prop('disabled', true);
+            $('#answer-input').prop('disabled', true).val('');
+            $('#error-message').hide();
+            $('#feedback').hide();
+            $('#post-answer-buttons').hide();
+            $('#tryAgainButton').hide();
+            
+            const selectedGenres = $('#genre-select').val() || [];
+            const selectedDecades = $('#decade-select').val() || [];
+            
+            console.log('Current filters:', { genres: selectedGenres, decades: selectedDecades });
+            
+            fetch('/update_filters', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    genres: selectedGenres,
+                    decades: selectedDecades
                 })
-                .then(data => {
-                    console.log('Received data:', data);
-                    if (data.error) {
-                        throw new Error(data.error);
-                    }
-                    
-                    console.log('Loading audio from URL:', data.preview_url);
-                    
-                    if (currentAudio) {
-                        console.log('Stopping previous audio');
-                        currentAudio.pause();
-                    }
-                    
-                    currentAudio = new Audio();
-                    
-                    // Add all possible event listeners for debugging
-                    ['loadstart', 'durationchange', 'loadedmetadata', 'loadeddata', 
-                     'progress', 'canplay', 'canplaythrough', 'error', 'stalled', 
-                     'suspend', 'abort', 'timeout', 'ended'].forEach(event => {
-                        currentAudio.addEventListener(event, () => {
-                            console.log('Audio event:', event);
-                            if (event === 'error') {
-                                console.error('Audio error:', currentAudio.error);
-                            }
-                        });
-                    });
-                    
-                    currentAudio.addEventListener('ended', () => {
-                        document.querySelector('#playButton i').className = 'fas fa-play';
-                    });
-                    
-                    currentAudio.src = data.preview_url;
-                    console.log('Audio object created and source set');
-                })
-                .catch(error => {
-                    console.error('Error in loadNewSong:', error);
-                    document.getElementById('feedback').textContent = 'Error loading song. Please try again.';
-                    document.getElementById('feedback').className = 'feedback incorrect';
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    console.error('Error:', data.error);
+                    $('#error-message')
+                        .text(data.error)
+                        .addClass('show')
+                        .fadeIn();
+                    return;
+                }
+                
+                // Clear any previous error
+                $('#error-message').removeClass('show').hide();
+                
+                // Update audio source and show play button
+                currentAudio = new Audio(data.preview_url);
+                currentSong = {
+                    artist: data.artist,
+                    song: data.song
+                };
+                
+                // Add ended event listener
+                currentAudio.addEventListener('ended', () => {
+                    $('#playButton i').removeClass('fa-pause').addClass('fa-play');
                 });
+                
+                $('#playButton').show();
+                $('#submitButton').prop('disabled', false);
+                $('#answer-input').prop('disabled', false);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                $('#error-message')
+                    .text('Error loading song. Please try again.')
+                    .addClass('show')
+                    .fadeIn();
+            });
         }
         
-        document.getElementById('playButton').addEventListener('click', () => {
-            console.log('Play button clicked');
-            if (currentAudio) {
-                if (currentAudio.paused) {
-                    console.log('Attempting to play audio...');
-                    currentAudio.play()
-                        .then(() => {
-                            console.log('Audio playing successfully');
-                            document.querySelector('#playButton i').className = 'fas fa-pause';
-                        })
-                        .catch(error => {
-                            console.error('Error playing audio:', error);
-                            document.getElementById('feedback').textContent = 'Error playing audio. Please try again.';
-                            document.getElementById('feedback').className = 'feedback incorrect';
-                        });
-                } else {
-                    currentAudio.pause();
-                    document.querySelector('#playButton i').className = 'fas fa-play';
-                }
+        // Play button click handler
+        $('#playButton').on('click', function() {
+            if (!currentAudio) return;
+            
+            const icon = $(this).find('i');
+            if (currentAudio.paused) {
+                currentAudio.play();
+                icon.removeClass('fa-play').addClass('fa-pause');
+            } else {
+                currentAudio.pause();
+                icon.removeClass('fa-pause').addClass('fa-play');
             }
         });
 
@@ -324,6 +508,7 @@
             // Stop any playing audio
             if (currentAudio) {
                 currentAudio.pause();
+                currentAudio.src = '';
                 currentAudio = null;
             }
             
@@ -344,54 +529,107 @@
             updateLeaderboard();
         }
         
-        // Update submit button handler
-        document.getElementById('submitButton').addEventListener('click', () => {
-            const submitButton = document.getElementById('submitButton');
-            const answerInput = document.getElementById('answer-input');
-            const guess = answerInput.value.trim();
+        // Submit answer
+        $('#submitButton').on('click', function() {
+            if (!currentSong) return;
             
-            // Disable submit button while checking
-            submitButton.disabled = true;
+            const answer = $('#answer-input').val().trim();
+            if (!answer) return;
+            
+            // Disable input and submit button
+            $('#answer-input').prop('disabled', true);
+            $('#submitButton').prop('disabled', true);
             
             fetch('/check-answer', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ guess: guess })
+                body: JSON.stringify({
+                    answer: answer,
+                    artist: currentSong.artist,
+                    song: currentSong.song
+                })
             })
             .then(response => response.json())
             .then(data => {
-                // Update score display
-                score = data.score;
-                total = data.total;
-                updateScore();
+                console.log('Answer response:', data);
                 
-                // Show feedback
-                const modalResult = document.getElementById('modalResult');
-                modalResult.innerHTML = `
-                    <p class="modal-response">${data.message}</p>
-                    <p class="modal-answer">Correct Answer: "${data.correct_answer.song}" by <strong>${data.correct_answer.artist}</strong></p>
-                `;
-                resultModal.show();
+                // Update feedback
+                const feedback = $('#feedback');
+                feedback.text(data.message);
+                feedback.removeClass('correct incorrect');
+                feedback.addClass(data.correct ? 'correct' : 'incorrect');
+                feedback.fadeIn();
                 
-                // Clear input
-                answerInput.value = '';
+                // Update score
+                $('#score').text(data.score);
+                $('#total').text(data.total);
                 
-                // Re-enable submit button
-                submitButton.disabled = false;
-                
-                // If game is over, show game over screen after showing the answer
                 if (data.game_over) {
-                    setTimeout(() => {
-                        showGameOver();
-                    }, 2000);  // Wait 2 seconds to show the answer
+                    // Show game over message
+                    $('#feedback')
+                        .addClass('game-over')
+                        .text(`Game Over! Your final score is ${data.score}/${data.total}. The last answer was: ${data.message}`)
+                        .fadeIn();
+                    
+                    // Hide next question button
+                    $('#post-answer-buttons').hide();
+                    
+                    // Show try again button
+                    $('#tryAgainButton').fadeIn();
+                    
+                    // Update leaderboard
+                    updateLeaderboard();
+                } else {
+                    // Show next question button
+                    $('#post-answer-buttons').fadeIn();
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                submitButton.disabled = false;
+                $('#feedback').text('Error checking answer. Please try again.').fadeIn();
+                
+                // Re-enable input and submit button
+                $('#answer-input').prop('disabled', false);
+                $('#submitButton').prop('disabled', false);
             });
+        });
+        
+        // Next Question button handler
+        $('#nextQuestionButton').on('click', function() {
+            // Hide feedback and buttons
+            $('#feedback').fadeOut();
+            $('#post-answer-buttons').fadeOut();
+            
+            // Load new song
+            loadNewSong();
+        });
+        
+        // Try Again button handler (restarts the entire game)
+        $('#tryAgainButton').on('click', function() {
+            // Reset score and total
+            $('#score').text('0');
+            $('#total').text('0');
+            
+            // Clear and reset UI
+            $('#feedback').fadeOut();
+            $('#tryAgainButton').fadeOut();
+            $('#answer-input').val('');
+            
+            // Clear genre and decade selections
+            $('#genre-select').val([]).trigger('change');
+            $('#decade-select').val([]).trigger('change');
+            
+            // Load new song
+            loadNewSong();
+        });
+        
+        // Handle Enter key in answer input
+        $('#answer-input').on('keypress', function(e) {
+            if (e.which === 13) {  // Enter key
+                $('#submitButton').click();
+            }
         });
         
         // Load leaderboard on page load
@@ -399,6 +637,40 @@
         
         // Start with username input, don't load first song yet
         document.getElementById('game-container').style.display = 'none';
+        
+        // Initialize Select2
+        $(document).ready(function() {
+            $('#genre-select').select2({
+                placeholder: 'Select genres...',
+                allowClear: true
+            });
+            
+            $('#decade-select').select2({
+                placeholder: 'Select decades...',
+                allowClear: true
+            });
+            
+            // Add change handlers for filters
+            $('#genre-select, #decade-select').on('change', function() {
+                loadNewSong();
+            });
+        });
+        
+        // Play Again button handler
+        $('#playAgainButton').on('click', function() {
+            // Reset UI
+            $('#score').text('0');
+            $('#total').text('0');
+            $('#feedback').hide();
+            $('#playAgainButton').hide();
+            
+            // Enable controls
+            $('#submitButton').prop('disabled', false);
+            $('#answer-input').prop('disabled', false).val('');
+            
+            // Load new song
+            loadNewSong();
+        });
     </script>
 </body>
 </html>

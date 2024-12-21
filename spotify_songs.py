@@ -1,306 +1,304 @@
-import spotipy
-from spotipy.oauth2 import SpotifyClientCredentials
-import pandas as pd
-from datetime import datetime
 import os
+import time
+import json
+import sys
+import pandas as pd
 from tqdm import tqdm
+import pylast
+from concurrent.futures import ThreadPoolExecutor
+from queue import Queue
+from threading import Lock
 
-def init_spotify():
-    """Initialize Spotify client"""
-    client_id = os.environ.get('SPOTIFY_CLIENT_ID')
-    client_secret = os.environ.get('SPOTIFY_CLIENT_SECRET')
-    if not client_id or not client_secret:
-        raise ValueError("Spotify credentials not found in environment variables")
-    return spotipy.Spotify(auth_manager=SpotifyClientCredentials(
-        client_id=client_id,
-        client_secret=client_secret
-    ))
+# Last.fm API setup
+API_KEY = "0243f85294f0317b7bf2dcce8ff639e1"
+API_SECRET = "f40c2aeec15941f9c7fd18ae1b7254a1"
 
-def get_track_year(sp, track_id):
-    """Get the release year for a track from Spotify"""
+network = pylast.LastFMNetwork(
+    api_key=API_KEY,
+    api_secret=API_SECRET,
+)
+
+# Rate limiting setup
+request_queue = Queue()
+rate_limit_lock = Lock()
+last_request_time = 0
+MIN_REQUEST_INTERVAL = 0.2  # 200ms between requests (5 requests per second)
+
+def rate_limited_request(func, *args, **kwargs):
+    """Execute a function with rate limiting"""
+    global last_request_time
+    
+    with rate_limit_lock:
+        current_time = time.time()
+        time_since_last = current_time - last_request_time
+        if time_since_last < MIN_REQUEST_INTERVAL:
+            time.sleep(MIN_REQUEST_INTERVAL - time_since_last)
+        last_request_time = time.time()
+        
+    return func(*args, **kwargs)
+
+def get_artist_genres_lastfm(artist_name):
+    """Get artist genres from Last.fm using top tags"""
     try:
-        track_info = sp.track(track_id)
-        album_id = track_info['album']['id']
-        album_info = sp.album(album_id)
-        release_date = album_info.get('release_date', '')
-        precision = album_info.get('release_date_precision', '')
-        if precision == 'day' or precision == 'month':
-            return release_date[:4]
-        elif precision == 'year':
-            return release_date
+        # Search for the artist
+        artist = rate_limited_request(network.get_artist, artist_name)
+        
+        # Get top tags (these are effectively genres)
+        tags = rate_limited_request(artist.get_top_tags, limit=10)
+        
+        # Filter tags by weight (popularity) and convert to genres
+        genres = []
+        for tag in tags:
+            try:
+                # Convert weight to int and compare
+                if int(tag.weight) >= 25:
+                    # Clean up the tag name
+                    genre = tag.item.get_name().lower().strip()
+                    # Skip non-genre tags like "seen live", "favourite", etc
+                    if genre not in {'seen live', 'favourite', 'favorite', 'spotify', 'under 2000 listeners'}:
+                        genres.append(genre)
+            except (ValueError, TypeError):
+                # Skip tags with invalid weights
+                continue
+        
+        print(f"Found genres for {artist_name}: {genres}", flush=True)
+        return genres
+        
+    except pylast.WSError as e:
+        if "The artist you supplied could not be found" in str(e):
+            print(f"Artist not found: {artist_name}", flush=True)
         else:
-            return None
+            print(f"Last.fm API error for {artist_name}: {e}", flush=True)
+        return []
     except Exception as e:
-        print(f"Error getting track year: {str(e)}")
-        return None
-
-def get_artist_top_tracks(sp, artist_id):
-    """Get top tracks from an artist"""
-    try:
-        results = sp.artist_top_tracks(artist_id)
-        artist_info = sp.artist(artist_id)
-        artist_genres = artist_info['genres']
-        tracks = []
-        for track in results['tracks']:
-            popularity = track['popularity']
-            if popularity >= 90:
-                popularity_category = "Very High"
-            elif popularity >= 70:
-                popularity_category = "High"
-            elif popularity >= 50:
-                popularity_category = "Medium"
-            elif popularity >= 30:
-                popularity_category = "Low"
-            else:
-                popularity_category = "Very Low"
-            
-            year = track['album']['release_date'][:4] if track['album']['release_date'] else None
-            if not year or not year.isdigit() or int(year) < 1900:
-                year = get_track_year(sp, track['id'])
-            if not year or not year.isdigit() or int(year) < 1900:
-                year = 'Unknown'
-                decade = 'Unknown'
-            else:
-                decade = f"{year[:3]}0s"
-            
-            tracks.append({
-                'Song': track['name'],
-                'Artist': track['artists'][0]['name'],
-                'Year': year,
-                'Decade': decade,
-                'Genres': ', '.join(artist_genres) if artist_genres else 'Unknown',
-                'Popularity': popularity,
-                'Popularity_Category': popularity_category,
-                'Source': 'Artist Top Tracks'
-            })
-        return tracks
-    except Exception as e:
-        print(f"Error getting top tracks for artist {artist_id}: {str(e)}")
+        print(f"Error getting genres for {artist_name}: {e}", flush=True)
         return []
 
-def get_related_artists_tracks(sp, artist_id, max_related=3):
-    """Get top tracks from related artists"""
-    tracks = []
-    try:
-        related = sp.artist_related_artists(artist_id)
-        for artist in related['artists'][:max_related]:
-            artist_tracks = get_artist_top_tracks(sp, artist['id'])
-            tracks.extend(artist_tracks)
-    except Exception as e:
-        print(f"Error getting related artists for {artist_id}: {str(e)}")
-    return tracks
-
-def get_top_artists(sp, genres=None):
-    """Get top artists by genre"""
-    if genres is None:
-        genres = [
-            'pop', 'rock', 'hip hop', 'rap', 'r&b', 'country', 'electronic',
-            'metal', 'jazz', 'blues', 'folk', 'indie', 'soul', 'punk',
-            'classical', 'reggae', 'disco', 'funk', 'alternative'
-        ]
-    
-    artists = []
-    for genre in genres:
-        results = sp.search(q=f'genre:"{genre}"', type='artist', limit=50)
-        artists.extend(results['artists']['items'])
-    
-    unique_artists = {artist['id']: artist for artist in artists}.values()
-    return sorted(unique_artists, key=lambda x: x['popularity'], reverse=True)
-
-def clean_text(text):
-    """Clean text by removing special characters and converting to lowercase"""
-    return ''.join(e for e in text if e.isalnum() or e.isspace()).lower()
-
-def are_similar_strings(str1, str2, threshold=0.85):
-    """Check if two strings are similar using character-level comparison"""
-    str1 = clean_text(str1.lower())
-    str2 = clean_text(str2.lower())
-    
-    if not str1 or not str2:
-        return False
-    
-    s1 = set(str1.split())
-    s2 = set(str2.split())
-    
-    intersection = len(s1 & s2)
-    union = len(s1 | s2)
-    return intersection / union >= threshold if union > 0 else False
-
-def deduplicate_songs(df):
-    """Remove duplicate songs based on similar names and artists"""
-    print("\nDeduplicating songs...")
-    rows_to_keep = []
-    seen_songs = set()
-    duplicates = []
-    
-    for idx, row in tqdm(df.iterrows(), total=len(df)):
-        song = row['Song']
-        artist = row['Artist']
-        key = f"{song}|{artist}"
-        
-        is_duplicate = False
-        for seen_key in seen_songs:
-            seen_song, seen_artist = seen_key.split('|')
-            if are_similar_strings(song, seen_song) and are_similar_strings(artist, seen_artist):
-                is_duplicate = True
-                duplicates.append({
-                    'Original': f"{seen_song} by {seen_artist}",
-                    'Duplicate': f"{song} by {artist}"
-                })
-                break
-        
-        if not is_duplicate:
-            seen_songs.add(key)
-            rows_to_keep.append(idx)
-    
-    deduped_df = df.loc[rows_to_keep].copy()
-    print(f"\nRemoved {len(df) - len(deduped_df)} duplicate songs")
-    
-    if duplicates:
-        print("\nExample duplicates removed:")
-        for i, dup in enumerate(duplicates[:5], 1):
-            print(f"{i}. {dup['Duplicate']} (duplicate of {dup['Original']})")
-        if len(duplicates) > 5:
-            print(f"... and {len(duplicates) - 5} more")
-    
-    return deduped_df
-
-def get_spotify_track_info(sp, song, artist):
-    """Get both genre and popularity information in a single lookup"""
-    try:
-        query = f"track:{song} artist:{artist}"
-        results = sp.search(q=query, type='track', limit=5)
-        
-        if not results['tracks']['items']:
-            return {
-                'genres': 'Unknown',
-                'popularity': 50,
-                'popularity_category': 'Medium'
-            }
-        
-        best_match = None
-        highest_similarity = -1
-        
-        for track in results['tracks']['items']:
-            track_name = track['name']
-            track_artist = track['artists'][0]['name']
-            
-            name_similarity = are_similar_strings(song, track_name)
-            artist_similarity = are_similar_strings(artist, track_artist)
-            
-            if name_similarity and artist_similarity:
-                combined_similarity = (name_similarity + artist_similarity) / 2
-                if combined_similarity > highest_similarity:
-                    highest_similarity = combined_similarity
-                    best_match = track
-        
-        if not best_match:
-            return {
-                'genres': 'Unknown',
-                'popularity': 50,
-                'popularity_category': 'Medium'
-            }
-        
-        artist_id = best_match['artists'][0]['id']
-        artist_info = sp.artist(artist_id)
-        genres = artist_info['genres']
-        popularity = best_match['popularity']
-        
-        if popularity >= 90:
-            popularity_category = "Very High"
-        elif popularity >= 70:
-            popularity_category = "High"
-        elif popularity >= 50:
-            popularity_category = "Medium"
-        elif popularity >= 30:
-            popularity_category = "Low"
-        else:
-            popularity_category = "Very Low"
-        
-        return {
-            'genres': ', '.join(genres) if genres else 'Unknown',
-            'popularity': popularity,
-            'popularity_category': popularity_category
+def process_artist_batch(artists, artist_to_indices, input_df):
+    """Process a batch of artists in parallel"""
+    results = {}
+    with ThreadPoolExecutor(max_workers=5) as executor:  # 5 parallel requests
+        future_to_artist = {
+            executor.submit(get_artist_genres_lastfm, artist): artist 
+            for artist in artists
         }
+        for future in tqdm(future_to_artist, desc="Processing batch", leave=False):
+            artist = future_to_artist[future]
+            try:
+                genres = future.result()
+                if genres:
+                    results[artist] = genres
+            except Exception as e:
+                print(f"Error processing {artist}: {e}", flush=True)
     
-    except Exception as e:
-        print(f"Error getting track info for {song} by {artist}: {str(e)}")
-        return {
-            'genres': 'Unknown',
-            'popularity': 50,
-            'popularity_category': 'Medium'
-        }
+    # Update dataframe with results
+    for artist, genres in results.items():
+        if genres:
+            genres_str = ','.join(genres)
+            for idx in artist_to_indices[artist]:
+                input_df.at[idx, 'Genres'] = genres_str
+    
+    return len(results)
 
-def update_song_database():
-    """Update the song database with Spotify data"""
+def update_songs(input_df, output_file):
+    """Main function to update song database"""
+    print("Starting update process...", flush=True)
+    
+    # First identify unique artists that need processing
+    missing_genres = input_df['Genres'].isna()
+    unique_artists = input_df.loc[missing_genres, 'Artist'].unique()
+    
+    print("\nSample of original artist names:", flush=True)
+    print(unique_artists[:10], flush=True)
+    
+    # Clean artist names and remove duplicates
+    cleaned_artists = {clean_artist_name(artist) for artist in unique_artists}
+    cleaned_artists = sorted(list(cleaned_artists))  # Convert to sorted list
+    
+    print("\nSample of cleaned artist names:", flush=True)
+    print(cleaned_artists[:10], flush=True)
+    
+    total_artists = len(cleaned_artists)
+    print(f"\nFound {total_artists} unique primary artists needing genre data", flush=True)
+    
+    # Create a lookup for all songs by these artists
+    artist_to_indices = {}
+    for idx, row in input_df.iterrows():
+        if pd.isna(row['Genres']):
+            artist = clean_artist_name(row['Artist'])
+            if artist in cleaned_artists:
+                if artist not in artist_to_indices:
+                    artist_to_indices[artist] = []
+                artist_to_indices[artist].append(idx)
+    
+    # Process artists in batches
+    batch_size = 50  # Larger batches since Last.fm is faster
+    processed_count = 0
+    start_time = time.time()
+    
     try:
-        print("Loading existing Billboard data...")
-        existing_df = pd.read_csv('billboard_lyrics_1964-2015.csv', encoding='latin1')
-        existing_df['Year'] = existing_df['Year'].astype(str)
-        
-        print("Initializing Spotify client...")
-        sp = init_spotify()
-        
-        print("Getting top artists...")
-        top_artists = get_top_artists(sp)
-        
-        all_tracks = []
-        print("\nGetting tracks from top artists...")
-        for artist in tqdm(top_artists[:50]):
-            tracks = get_artist_top_tracks(sp, artist['id'])
-            all_tracks.extend(tracks)
-            
-            related_tracks = get_related_artists_tracks(sp, artist['id'])
-            all_tracks.extend(related_tracks)
-        
-        if all_tracks:
-            new_df = pd.DataFrame(all_tracks)
-            new_df = new_df.drop_duplicates(subset=['Song', 'Artist'])
-            
-            if not existing_df.empty:
-                print("\nUpdating existing songs with Spotify data...")
-                for idx, row in tqdm(existing_df.iterrows(), total=len(existing_df)):
-                    song = row['Song']
-                    artist = row['Artist']
-                    
-                    spotify_info = get_spotify_track_info(sp, song, artist)
-                    
-                    existing_df.at[idx, 'Genres'] = spotify_info['genres']
-                    existing_df.at[idx, 'Popularity'] = spotify_info['popularity']
-                    existing_df.at[idx, 'Popularity_Category'] = spotify_info['popularity_category']
+        with tqdm(total=total_artists, desc="Overall progress") as pbar:
+            for i in range(0, total_artists, batch_size):
+                batch = cleaned_artists[i:i + batch_size]
                 
-                print("\nCombining existing and new data...")
-                combined_df = pd.concat([existing_df, new_df], ignore_index=True)
-            else:
-                combined_df = new_df
-            
-            deduped_df = deduplicate_songs(combined_df)
-            
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            output_file = f'updated_spotify_data_{timestamp}.csv'
-            deduped_df.to_csv(output_file, index=False)
-            print(f"\nSaved updated dataset to {output_file}")
-            
-            print("\nDataset statistics:")
-            print(f"Total songs: {len(deduped_df)}")
-            print("\nSongs by decade:")
-            decade_counts = deduped_df['Decade'].value_counts()
-            for decade, count in decade_counts.items():
-                print(f"{decade}: {count}")
-            
-            print("\nSongs by popularity category:")
-            popularity_counts = deduped_df['Popularity_Category'].value_counts()
-            for category, count in popularity_counts.items():
-                print(f"{category}: {count}")
-            
-            return deduped_df
-        else:
-            print("No new tracks found")
-            return existing_df
-    
+                # Process batch
+                batch_processed = process_artist_batch(batch, artist_to_indices, input_df)
+                processed_count += batch_processed
+                
+                # Calculate progress stats
+                elapsed = time.time() - start_time
+                rate = processed_count / elapsed if elapsed > 0 else 0
+                eta = (total_artists - processed_count) / rate if rate > 0 else 0
+                
+                print(f"\rProcessed {processed_count}/{total_artists} artists "
+                      f"({processed_count/total_artists*100:.1f}%) "
+                      f"| Rate: {rate:.1f} artists/sec "
+                      f"| ETA: {eta/60:.1f} minutes", flush=True)
+                
+                # Save progress after each batch
+                input_df.to_csv(output_file, index=False)
+                
+                pbar.update(len(batch))
+                
     except Exception as e:
-        print(f"Error updating database: {str(e)}")
-        return None
+        print(f"\nFatal error in update_songs: {e}", flush=True)
+        raise
+    
+    finally:
+        # Save final progress
+        input_df.to_csv(output_file, index=False)
+        print(f"\n\nCompleted processing {processed_count} artists", flush=True)
+        
+    return input_df
 
-if __name__ == '__main__':
-    update_song_database()
+def clean_artist_name(artist):
+    """Clean artist name by removing featured artists and common separators"""
+    # List of words that indicate featured artists
+    featured_indicators = [
+        'featuring', 'feat.', 'feat', 'ft.', 'ft', 'with',
+        ' & ', ' x ', ' vs. ', ' vs ', ' presents ', ' pres. '  # Added spaces around indicators
+    ]
+    
+    # Convert to lowercase for comparison
+    artist = artist.lower().strip()
+    
+    # Split on common separators - only when they're surrounded by spaces
+    for separator in featured_indicators:
+        if separator in artist:
+            # Take only the first part (primary artist)
+            artist = artist.split(separator)[0]
+            break  # Stop after first match to avoid over-splitting
+    
+    # Remove any trailing/leading whitespace
+    return artist.strip()
+
+def compile_existing_genres(df):
+    """Compile all known genres for artists from existing data"""
+    # Create a mask for valid genre entries
+    valid_genres = (df['Genres'].notna()) & (df['Genres'] != '') & (df['Genres'] != 'Unknown')
+    
+    # Group by artist and get their genres
+    artist_genres = (df[valid_genres]
+                    .groupby('Artist', as_index=False)
+                    .agg({'Genres': 'first'})  # Take first valid genre for each artist
+                    .set_index('Artist')['Genres']
+                    .str.lower()  # Normalize to lowercase
+                    .to_dict())
+    
+    return artist_genres
+
+def update_song_database(input_file='updated_spotify_data.csv', 
+                        output_file='updated_spotify_data_new.csv'):
+    """Main function to update song database"""
+    print(f"Loading Spotify database: {input_file}", flush=True)
+    sys.stdout.flush()
+    df = pd.read_csv(input_file)
+    
+    # Convert year to string if it exists
+    if 'Year' in df.columns:
+        df['Year'] = df['Year'].astype(str)
+    
+    # Initialize columns if they don't exist
+    if 'Genres' not in df.columns:
+        df['Genres'] = None
+    if 'Popularity' not in df.columns:
+        df['Popularity'] = None
+    
+    # First compile all known genres
+    artist_genres = compile_existing_genres(df)
+    print(f"Found {len(artist_genres)} artists with known genres", flush=True)
+    sys.stdout.flush()
+    
+    # Apply known genres to any missing entries
+    missing_genres = df['Genres'].isna()
+    genres_applied = 0
+    for idx, row in df[missing_genres].iterrows():
+        artist = row['Artist'].lower()
+        if artist in artist_genres:
+            df.at[idx, 'Genres'] = artist_genres[artist]
+            genres_applied += 1
+    
+    print(f"Applied existing genres to {df['Genres'].notna().sum()} songs", flush=True)
+    sys.stdout.flush()
+    print(f"Still missing genres for {df['Genres'].isna().sum()} songs", flush=True)
+    sys.stdout.flush()
+    
+    if df['Genres'].isna().sum() == 0:
+        print("All genres found from existing data, saving...", flush=True)
+        sys.stdout.flush()
+        df.to_csv(output_file, index=False)
+        return df
+    
+    updated_df = update_songs(df, output_file)
+    print(f"\nUpdate complete! Results saved to {output_file}", flush=True)
+    sys.stdout.flush()
+    return updated_df
+
+def test_lastfm_connection():
+    """Test the Last.fm connection with timing information"""
+    print("Starting Last.fm connection test...", flush=True)
+    sys.stdout.flush()
+    
+    try:
+        print("Initializing Last.fm client...", flush=True)
+        sys.stdout.flush()
+        
+        # Test a simple search
+        print("\nTesting search API...", flush=True)
+        sys.stdout.flush()
+        
+        print("Making search request...", flush=True)
+        sys.stdout.flush()
+        
+        start_time = time.time()
+        artist = network.get_artist("Radiohead")
+        tags = artist.get_top_tags(limit=5)
+        end_time = time.time()
+        
+        print(f"Search API call took {(end_time - start_time):.2f} seconds", flush=True)
+        print(f"Found artist: {artist.name}", flush=True)
+        print("Top tags:", [tag.item.get_name() for tag in tags[:5]], flush=True)
+        sys.stdout.flush()
+        
+        return True
+            
+    except Exception as e:
+        print(f"\nError in test_lastfm_connection:", flush=True)
+        print(f"Error type: {type(e)}", flush=True)
+        print(f"Error message: {str(e)}", flush=True)
+        print(f"Error args: {e.args}", flush=True)
+        sys.stdout.flush()
+        return False
+
+if __name__ == "__main__":
+    # Test Last.fm connection
+    print("Testing Last.fm connection...", flush=True)
+    sys.stdout.flush()
+    if test_lastfm_connection():
+        print("\nLast.fm connection successful! Starting database update...", flush=True)
+        sys.stdout.flush()
+        # Run the function
+        update_song_database()
+    else:
+        print("\nFailed to connect to Last.fm. Please check your credentials and try again.", flush=True)
+        sys.stdout.flush()
