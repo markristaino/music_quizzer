@@ -207,7 +207,7 @@ def compile_existing_genres(df):
     
     return artist_genres
 
-def update_song_database(input_file='updated_spotify_data.csv', 
+def update_song_database(input_file='spotify_songs.csv', 
                         output_file='updated_spotify_data_new.csv'):
     """Main function to update song database"""
     print(f"Loading Spotify database: {input_file}", flush=True)
@@ -243,12 +243,7 @@ def update_song_database(input_file='updated_spotify_data.csv',
     print(f"Still missing genres for {df['Genres'].isna().sum()} songs", flush=True)
     sys.stdout.flush()
     
-    if df['Genres'].isna().sum() == 0:
-        print("All genres found from existing data, saving...", flush=True)
-        sys.stdout.flush()
-        df.to_csv(output_file, index=False)
-        return df
-    
+    # Always proceed to update_songs to get new genres from Last.fm
     updated_df = update_songs(df, output_file)
     print(f"\nUpdate complete! Results saved to {output_file}", flush=True)
     sys.stdout.flush()
@@ -294,11 +289,8 @@ if __name__ == "__main__":
     # Test Last.fm connection
     print("Testing Last.fm connection...", flush=True)
     sys.stdout.flush()
-    if test_lastfm_connection():
-        print("\nLast.fm connection successful! Starting database update...", flush=True)
-        sys.stdout.flush()
-        # Run the function
-        update_song_database()
-    else:
-        print("\nFailed to connect to Last.fm. Please check your credentials and try again.", flush=True)
-        sys.stdout.flush()
+    test_lastfm_connection()
+    
+    # Update song database
+    update_song_database(input_file='updated_spotify_data.csv', 
+                        output_file='updated_spotify_data_new.csv')

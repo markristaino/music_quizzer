@@ -55,17 +55,6 @@
             border-radius: 10px;
             padding: 0.75rem;
         }
-        #answer-input.incorrect {
-            background-color: #fff2f2;
-            border-color: #dc3545;
-        }
-        #answer-input.incorrect:focus {
-            box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
-            border-color: #dc3545;
-        }
-        .input-group.incorrect #submitButton {
-            border-color: #dc3545;
-        }
         .feedback {
             font-size: 1.2rem;
             margin-top: 1rem;
@@ -145,105 +134,6 @@
         #error-message.show {
             display: block !important;
         }
-        
-        #feedback {
-            margin: 20px 0;
-            padding: 15px;
-            border-radius: 8px;
-            display: none;
-            font-size: 1.1em;
-            font-weight: 500;
-        }
-        
-        #feedback.correct {
-            color: #155724;
-            background-color: #d4edda;
-            border: 1px solid #c3e6cb;
-        }
-        
-        #feedback.incorrect {
-            color: #721c24;
-            background-color: #f8d7da;
-            border: 1px solid #f5c6cb;
-        }
-        
-        #playAgainButton {
-            display: none;
-            margin-top: 20px;
-            padding: 10px 20px;
-            font-size: 1.1em;
-            background-color: #28a745;
-            border-color: #28a745;
-            color: white;
-        }
-        
-        #playAgainButton:hover {
-            background-color: #218838;
-            border-color: #1e7e34;
-        }
-        
-        #feedback.game-over {
-            background-color: #cce5ff;
-            border-color: #b8daff;
-            color: #004085;
-            font-size: 1.2em;
-            padding: 20px;
-        }
-        
-        #post-answer-buttons {
-            margin: 20px auto;
-            display: none;
-        }
-        
-        #post-answer-buttons .btn {
-            padding: 8px 20px;
-            font-weight: 500;
-        }
-        
-        #tryAgainButton {
-            display: none;
-            margin: 20px auto;
-            padding: 12px 30px;
-            font-size: 1.2em;
-            font-weight: 500;
-            background-color: #28a745;
-            border-color: #28a745;
-            color: white;
-        }
-        
-        #tryAgainButton:hover {
-            background-color: #218838;
-            border-color: #1e7e34;
-        }
-        
-        #nextQuestionButton {
-            background-color: #007bff;
-            border-color: #007bff;
-            color: white;
-        }
-        
-        #nextQuestionButton:hover {
-            background-color: #0056b3;
-            border-color: #0056b3;
-        }
-        
-        .input-group {
-            max-width: 500px;
-            margin: 0 auto;
-        }
-        
-        .shake {
-            animation: shake 0.5s;
-        }
-        
-        @keyframes shake {
-            0% { transform: translateX(0); }
-            20% { transform: translateX(-10px); }
-            40% { transform: translateX(10px); }
-            60% { transform: translateX(-10px); }
-            80% { transform: translateX(10px); }
-            100% { transform: translateX(0); }
-        }
     </style>
 </head>
 <body>
@@ -286,7 +176,6 @@
                         </div>
                         
                         <div id="error-message" class="mb-4"></div>
-                        <div id="feedback" class="mb-4"></div>
                         
                         <div class="d-flex justify-content-center align-items-center mb-4">
                             <button id="playButton" class="btn btn-play">
@@ -294,18 +183,14 @@
                             </button>
                         </div>
                         
-                        <div class="input-group mb-3">
-                            <input type="text" id="answer-input" class="form-control" placeholder="Enter artist or song name...">
-                            <button id="submitButton" class="btn btn-primary">Submit Answer</button>
+                        <div class="mb-3">
+                            <input type="text" id="answer-input" class="form-control" 
+                                   placeholder="Who's the artist?" autocomplete="off">
                         </div>
                         
-                        <div class="btn-group mb-3" role="group" style="display: none;" id="post-answer-buttons">
-                            <button id="nextQuestionButton" class="btn btn-primary">Next Question</button>
-                        </div>
+                        <button id="submitButton" class="btn btn-primary mb-3">Submit Answer</button>
                         
-                        <button id="tryAgainButton" class="btn btn-primary" style="display: none;">Try Again</button>
-                        
-                        <button id="playAgainButton" class="btn">Play Again</button>
+                        <div id="feedback" class="feedback"></div>
                     </div>
 
                     <!-- Leaderboard -->
@@ -342,7 +227,6 @@
         const MAX_SONGS = 6;
         const resultModal = new bootstrap.Modal(document.getElementById('resultModal'));
         let username = '';
-        let currentSong = null;
         
         // Fun response variations
         const correctResponses = [
@@ -433,10 +317,7 @@
             $('#playButton').hide();
             $('#submitButton').prop('disabled', true);
             $('#answer-input').prop('disabled', true).val('');
-            $('#error-message').hide();
-            $('#feedback').hide();
-            $('#post-answer-buttons').hide();
-            $('#tryAgainButton').hide();
+            $('#error-message').removeClass('show').hide();
             
             const selectedGenres = $('#genre-select').val() || [];
             const selectedDecades = $('#decade-select').val() || [];
@@ -457,10 +338,12 @@
             .then(data => {
                 if (data.error) {
                     console.error('Error:', data.error);
-                    $('#error-message')
+                    const $error = $('#error-message');
+                    $error
                         .text(data.error)
                         .addClass('show')
-                        .fadeIn();
+                        .show();
+                    console.log('Error message shown:', $error.is(':visible'), $error.css('display'));
                     return;
                 }
                 
@@ -488,7 +371,7 @@
                 $('#error-message')
                     .text('Error loading song. Please try again.')
                     .addClass('show')
-                    .fadeIn();
+                    .show();
             });
         }
         
@@ -553,135 +436,54 @@
             updateLeaderboard();
         }
         
-        // Submit answer
-        $('#submitButton').on('click', function() {
-            if (!currentSong) return;
+        // Update submit button handler
+        document.getElementById('submitButton').addEventListener('click', () => {
+            const submitButton = document.getElementById('submitButton');
+            const answerInput = document.getElementById('answer-input');
+            const guess = answerInput.value.trim();
             
-            const answer = $('#answer-input').val().trim();
-            if (!answer) {
-                const feedback = $('#feedback');
-                feedback.html("Please write in an answer!");
-                feedback.removeClass('correct incorrect').addClass('incorrect');
-                feedback.fadeIn();
-                
-                // Shake the input box
-                $('#answer-input').addClass('shake');
-                setTimeout(() => $('#answer-input').removeClass('shake'), 500);
-                return;
-            }
-            
-            // Disable input and submit button
-            $('#answer-input').prop('disabled', true);
-            $('#submitButton').prop('disabled', true);
+            // Disable submit button while checking
+            submitButton.disabled = true;
             
             fetch('/check-answer', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    answer: answer,
-                    artist: currentSong.artist,
-                    song: currentSong.song
-                })
+                body: JSON.stringify({ guess: guess })
             })
             .then(response => response.json())
             .then(data => {
-                console.log('Answer response:', data);
+                // Update score display
+                score = data.score;
+                total = data.total;
+                updateScore();
                 
-                // Update feedback
-                const feedback = $('#feedback');
-                feedback.html(data.message);  
-                feedback.removeClass('correct incorrect');
-                feedback.addClass(data.correct ? 'correct' : 'incorrect');
-                feedback.fadeIn();
+                // Show feedback
+                const modalResult = document.getElementById('modalResult');
+                modalResult.innerHTML = `
+                    <p class="modal-response">${data.message}</p>
+                    <p class="modal-answer">Correct Answer: "${data.correct_answer.song}" by <strong>${data.correct_answer.artist}</strong></p>
+                `;
+                resultModal.show();
                 
-                // Update input styling
-                const answerInput = $('#answer-input');
-                const inputGroup = answerInput.parent();
-                if (!data.correct) {
-                    answerInput.addClass('incorrect');
-                    inputGroup.addClass('incorrect');
-                } else {
-                    answerInput.removeClass('incorrect');
-                    inputGroup.removeClass('incorrect');
-                }
+                // Clear input
+                answerInput.value = '';
                 
-                // Update score
-                $('#score').text(data.score);
-                $('#total').text(data.total);
+                // Re-enable submit button
+                submitButton.disabled = false;
                 
+                // If game is over, show game over screen after showing the answer
                 if (data.game_over) {
-                    // Show game over message
-                    $('#feedback')
-                        .addClass('game-over')
-                        .html(`Game Over! Your final score is ${data.score}/${data.total}. The last answer was: ${data.message}`)
-                        .fadeIn();
-                    
-                    // Hide next question button
-                    $('#post-answer-buttons').hide();
-                    
-                    // Show try again button
-                    $('#tryAgainButton').fadeIn();
-                    
-                    // Update leaderboard
-                    updateLeaderboard();
-                } else {
-                    // Show next question button
-                    $('#post-answer-buttons').fadeIn();
+                    setTimeout(() => {
+                        showGameOver();
+                    }, 2000);  // Wait 2 seconds to show the answer
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                $('#feedback').text('Error checking answer. Please try again.').fadeIn();
-                
-                // Re-enable input and submit button
-                $('#answer-input').prop('disabled', false);
-                $('#submitButton').prop('disabled', false);
+                submitButton.disabled = false;
             });
-        });
-        
-        // Next Question button handler
-        $('#nextQuestionButton').on('click', function() {
-            // Remove incorrect styling
-            $('#answer-input').removeClass('incorrect');
-            $('#answer-input').parent().removeClass('incorrect');
-            
-            // Hide feedback and buttons
-            $('#feedback').fadeOut();
-            $('#post-answer-buttons').fadeOut();
-            
-            // Load new song
-            loadNewSong();
-        });
-        
-        // Try Again button handler (restarts the entire game)
-        $('#tryAgainButton').on('click', function() {
-            // Reset score and total
-            $('#score').text('0');
-            $('#total').text('0');
-            
-            // Clear and reset UI
-            $('#feedback').fadeOut();
-            $('#tryAgainButton').fadeOut();
-            $('#answer-input')
-                .val('')
-                .removeClass('incorrect');
-            $('#answer-input').parent().removeClass('incorrect');
-            
-            // Clear genre and decade selections
-            $('#genre-select').val([]).trigger('change');
-            $('#decade-select').val([]).trigger('change');
-            
-            // Load new song
-            loadNewSong();
-        });
-        
-        // Handle Enter key in answer input
-        $('#answer-input').on('keypress', function(e) {
-            if (e.which === 13) {  // Enter key
-                $('#submitButton').click();
-            }
         });
         
         // Load leaderboard on page load
@@ -692,6 +494,24 @@
         
         // Initialize Select2
         $(document).ready(function() {
+            $('#genre-select').select2({
+                placeholder: 'Select genres...',
+                allowClear: true
+            });
+            
+            $('#decade-select').select2({
+                placeholder: 'Select decades...',
+                allowClear: true
+            });
+            
+            // Add change handlers for filters
+            $('#genre-select, #decade-select').on('change', function() {
+                loadNewSong();
+            });
+        });
+    </script>
+</body>
+</html>
             $('#genre-select').select2({
                 placeholder: 'Select genres...',
                 allowClear: true

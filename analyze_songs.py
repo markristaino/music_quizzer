@@ -1,5 +1,6 @@
 import pandas as pd
-from collections import Counter
+from collections import Counter, defaultdict
+from app import map_to_parent_genre
 
 def analyze_spotify_data(file_path):
     print(f"Loading data from {file_path}...")
@@ -25,6 +26,29 @@ def analyze_spotify_data(file_path):
     print("\nSongs per decade:")
     for decade, count in decade_counts.items():
         print(f"{decade}s: {count}")
+    
+    # Analyze parent genres
+    print("\nAnalyzing parent genres...")
+    parent_genre_counts = defaultdict(int)
+    songs_with_genre = 0
+    
+    for genres in df['Genres'].dropna():
+        has_genre = False
+        for genre in str(genres).split(','):
+            parent_genre = map_to_parent_genre(genre.strip())
+            if parent_genre:
+                parent_genre_counts[parent_genre] += 1
+                has_genre = True
+        if has_genre:
+            songs_with_genre += 1
+    
+    print("\nSongs by parent genre:")
+    total_genre_assignments = sum(parent_genre_counts.values())
+    for genre, count in sorted(parent_genre_counts.items(), key=lambda x: x[1], reverse=True):
+        print(f"{genre}: {count} ({count/len(df)*100:.1f}% of total songs, {count/total_genre_assignments*100:.1f}% of genre assignments)")
+    
+    songs_without_genre = len(df) - songs_with_genre
+    print(f"\nSongs with no genre: {songs_without_genre} ({songs_without_genre/len(df)*100:.1f}%)")
     
     # Additional stats
     print("\nAdditional Stats:")

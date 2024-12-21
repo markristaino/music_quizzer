@@ -481,7 +481,7 @@ def check_answer():
                     ).fetchall()
                     
                     # If less than 10 scores or score beats the lowest score
-                    if len(current_scores) < 10 or (current_scores and final_score > current_scores[-1][0]):
+                    if len(current_scores) < 10 or final_score > current_scores[-1]['score']:
                         made_leaderboard = True
                         message = "FUCK!!! NEW LEADERBOARD ENTRY!! " + message
                     
