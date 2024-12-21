@@ -529,9 +529,11 @@
                 
                 // If game is over, show game over screen after showing the answer
                 if (data.game_over) {
+                    // Hide the next song button on game over
+                    document.getElementById('nextSongButton').style.display = 'none';
                     setTimeout(() => {
                         showGameOver();
-                    }, 2000);  // Wait 2 seconds to show the answer
+                    }, 5000);  // Wait 5 seconds to show the answer
                 }
             })
             .catch(error => {
