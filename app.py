@@ -173,10 +173,11 @@ def init_song_data():
     """Initialize song data from CSV, with error handling"""
     global song_data, all_decades
     try:
-        # Try loading the updated Spotify data
+        # Try loading the updated Spotify data from GitHub
         try:
-            df = pd.read_csv('updated_spotify_data_new.csv', encoding='utf-8')
-            logger.info("Loaded updated Spotify dataset")
+            spotify_url = "https://raw.githubusercontent.com/markristaino/music_quizzer/main/updated_spotify_data_new.csv"
+            df = pd.read_csv(spotify_url, encoding='utf-8')
+            logger.info(f"Loaded updated Spotify dataset from GitHub")
             
             # Add Decade column if it doesn't exist
             if 'Decade' not in df.columns and 'Year' in df.columns:
@@ -187,8 +188,9 @@ def init_song_data():
         except Exception as e:
             logger.error(f"Failed to load updated Spotify data: {str(e)}")
             # Fall back to original Billboard data if Spotify data not available
-            df = pd.read_csv('billboard_lyrics_1964-2015.csv', encoding='latin1')
-            logger.info("Loaded original Billboard dataset")
+            billboard_url = "https://raw.githubusercontent.com/markristaino/music_quizzer/main/billboard_lyrics_1964-2015.csv"
+            df = pd.read_csv(billboard_url, encoding='latin1')
+            logger.info(f"Loaded original Billboard dataset from GitHub")
         
         song_data = df
         
