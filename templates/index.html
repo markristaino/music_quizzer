@@ -55,6 +55,17 @@
             border-radius: 10px;
             padding: 0.75rem;
         }
+        #answer-input.incorrect {
+            background-color: #fff2f2;
+            border-color: #dc3545;
+        }
+        #answer-input.incorrect:focus {
+            box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+            border-color: #dc3545;
+        }
+        .input-group.incorrect #submitButton {
+            border-color: #dc3545;
+        }
         .feedback {
             font-size: 1.2rem;
             margin-top: 1rem;
@@ -219,6 +230,19 @@
         .input-group {
             max-width: 500px;
             margin: 0 auto;
+        }
+        
+        .shake {
+            animation: shake 0.5s;
+        }
+        
+        @keyframes shake {
+            0% { transform: translateX(0); }
+            20% { transform: translateX(-10px); }
+            40% { transform: translateX(10px); }
+            60% { transform: translateX(-10px); }
+            80% { transform: translateX(10px); }
+            100% { transform: translateX(0); }
         }
     </style>
 </head>
@@ -534,7 +558,17 @@
             if (!currentSong) return;
             
             const answer = $('#answer-input').val().trim();
-            if (!answer) return;
+            if (!answer) {
+                const feedback = $('#feedback');
+                feedback.html("Please write in an answer!");
+                feedback.removeClass('correct incorrect').addClass('incorrect');
+                feedback.fadeIn();
+                
+                // Shake the input box
+                $('#answer-input').addClass('shake');
+                setTimeout(() => $('#answer-input').removeClass('shake'), 500);
+                return;
+            }
             
             // Disable input and submit button
             $('#answer-input').prop('disabled', true);
@@ -557,10 +591,21 @@
                 
                 // Update feedback
                 const feedback = $('#feedback');
-                feedback.text(data.message);
+                feedback.html(data.message);  
                 feedback.removeClass('correct incorrect');
                 feedback.addClass(data.correct ? 'correct' : 'incorrect');
                 feedback.fadeIn();
+                
+                // Update input styling
+                const answerInput = $('#answer-input');
+                const inputGroup = answerInput.parent();
+                if (!data.correct) {
+                    answerInput.addClass('incorrect');
+                    inputGroup.addClass('incorrect');
+                } else {
+                    answerInput.removeClass('incorrect');
+                    inputGroup.removeClass('incorrect');
+                }
                 
                 // Update score
                 $('#score').text(data.score);
@@ -570,7 +615,7 @@
                     // Show game over message
                     $('#feedback')
                         .addClass('game-over')
-                        .text(`Game Over! Your final score is ${data.score}/${data.total}. The last answer was: ${data.message}`)
+                        .html(`Game Over! Your final score is ${data.score}/${data.total}. The last answer was: ${data.message}`)
                         .fadeIn();
                     
                     // Hide next question button
@@ -598,6 +643,10 @@
         
         // Next Question button handler
         $('#nextQuestionButton').on('click', function() {
+            // Remove incorrect styling
+            $('#answer-input').removeClass('incorrect');
+            $('#answer-input').parent().removeClass('incorrect');
+            
             // Hide feedback and buttons
             $('#feedback').fadeOut();
             $('#post-answer-buttons').fadeOut();
@@ -615,7 +664,10 @@
             // Clear and reset UI
             $('#feedback').fadeOut();
             $('#tryAgainButton').fadeOut();
-            $('#answer-input').val('');
+            $('#answer-input')
+                .val('')
+                .removeClass('incorrect');
+            $('#answer-input').parent().removeClass('incorrect');
             
             // Clear genre and decade selections
             $('#genre-select').val([]).trigger('change');

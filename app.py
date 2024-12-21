@@ -460,23 +460,50 @@ def check_answer():
             message = random.choice(CORRECT_RESPONSES)
         else:
             message = random.choice(INCORRECT_RESPONSES)
-            message += f" The correct answer was '{correct_song}' by {correct_artist}."
+            # Format artist name in bold
+            message += f" The correct answer was '{correct_song}' by <strong>{data.get('artist')}</strong>."
         
         # Check if game is over
         game_over = session.get('total', 0) >= MAX_SONGS
         if game_over:
+            # Get final scores before clearing session
+            final_score = session.get('score', 0)
+            final_total = session.get('total', 0)
+            
             # Save score to leaderboard if username exists
             username = session.get('username')
+            made_leaderboard = False
             if username:
+                # Check if score makes it to leaderboard (top 10)
                 with get_db() as db:
+                    current_scores = db.execute(
+                        'SELECT score FROM scores ORDER BY score DESC LIMIT 10'
+                    ).fetchall()
+                    
+                    # If less than 10 scores or score beats the lowest score
+                    if len(current_scores) < 10 or (current_scores and final_score > current_scores[-1][0]):
+                        made_leaderboard = True
+                        message = "FUCK!!! NEW LEADERBOARD ENTRY!! " + message
+                    
+                    # Save the score
                     db.execute('INSERT INTO scores (username, score) VALUES (?, ?)',
-                              (username, session.get('score', 0)))
+                              (username, final_score))
                     db.commit()
             
             # Clear game state but keep username
             username = session.get('username')
             session.clear()
             session['username'] = username
+            
+            # Use final scores for response
+            return jsonify({
+                'correct': is_correct,
+                'message': message,
+                'score': final_score,
+                'total': final_total,
+                'game_over': game_over,
+                'made_leaderboard': made_leaderboard
+            })
         
         return jsonify({
             'correct': is_correct,
