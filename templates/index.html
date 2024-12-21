@@ -58,13 +58,35 @@
         .feedback {
             font-size: 1.2rem;
             margin-top: 1rem;
-            min-height: 2rem;
+            padding: 1rem;
+            border-radius: 8px;
+            display: none;
         }
-        .correct {
-            color: #28a745;
+        .feedback.correct {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
         }
-        .incorrect {
-            color: #dc3545;
+        .feedback.incorrect {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c2c7;
+        }
+        #error-message {
+            color: #842029;
+            background-color: #f8d7da;
+            border: 1px solid #f5c2c7;
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+            display: none;
+            text-align: center;
+            font-size: 1.1em;
+            font-weight: 500;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        #error-message.show {
+            display: block !important;
         }
         #leaderboard {
             margin-top: 2rem;
@@ -73,19 +95,6 @@
         }
         .list-group-item {
             background: rgba(255, 255, 255, 0.8);
-        }
-        .modal-response {
-            font-size: 1.5rem;
-            margin-bottom: 1rem;
-            font-weight: bold;
-        }
-        .modal-answer {
-            font-size: 1.2rem;
-            color: #2a5298;
-        }
-        .modal-answer strong {
-            color: #1e3c72;
-            font-size: 1.3rem;
         }
         /* Select2 Styles */
         .select2-container {
@@ -117,22 +126,14 @@
         .select2-container--default .select2-results__option--highlighted[aria-selected] {
             background-color: #2a5298;
         }
-        #error-message {
-            color: #842029;
-            background-color: #f8d7da;
-            border: 1px solid #f5c2c7;
-            border-radius: 8px;
-            padding: 1rem;
-            margin: 1rem 0;
-            display: none;
-            text-align: center;
-            font-size: 1.1em;
-            font-weight: 500;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        .button-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
         }
-        
-        #error-message.show {
-            display: block !important;
+        .button-container button {
+            min-width: 150px;  /* Set a minimum width for consistent button size */
         }
     </style>
 </head>
@@ -183,14 +184,17 @@
                             </button>
                         </div>
                         
+                        <div id="feedback" class="feedback"></div>
+                        
                         <div class="mb-3">
                             <input type="text" id="answer-input" class="form-control" 
                                    placeholder="Who's the artist?" autocomplete="off">
                         </div>
                         
-                        <button id="submitButton" class="btn btn-primary mb-3">Submit Answer</button>
-                        
-                        <div id="feedback" class="feedback"></div>
+                        <div class="button-container">
+                            <button id="submitButton" class="btn btn-primary mb-3">Submit Answer</button>
+                            <button id="nextSongButton" class="btn btn-primary mb-3" style="display: none;">Next Song</button>
+                        </div>
                     </div>
 
                     <!-- Leaderboard -->
@@ -205,27 +209,15 @@
         </div>
     </div>
 
-    <!-- Result Modal -->
-    <div class="modal fade" id="resultModal" tabindex="-1" aria-labelledby="resultModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-body text-center p-4">
-                    <h4 id="modalResult" class="mb-3"></h4>
-                    <button id="nextSongButton" class="btn btn-primary">Next Song</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script>
         let currentAudio = null;
+        let currentSong = null;  
         let score = 0;
         let total = 0;
         const MAX_SONGS = 6;
-        const resultModal = new bootstrap.Modal(document.getElementById('resultModal'));
         let username = '';
         
         // Fun response variations
@@ -283,25 +275,6 @@
                 });
         }
 
-        // Start game when username is submitted
-        document.getElementById('start-game').addEventListener('click', () => {
-            username = document.getElementById('username-input').value.trim();
-            if (username) {
-                fetch('/set_username', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ username: username })
-                })
-                .then(() => {
-                    document.getElementById('username-container').style.display = 'none';
-                    document.getElementById('game-container').style.display = 'block';
-                    loadNewSong();
-                });
-            }
-        });
-
         function loadNewSong() {
             console.log('Loading new song...');
             
@@ -315,15 +288,18 @@
             // Reset UI state
             $('#playButton i').removeClass('fa-pause').addClass('fa-play');
             $('#playButton').hide();
-            $('#submitButton').prop('disabled', true);
+            $('#submitButton').prop('disabled', true).show();
+            $('#nextSongButton').hide();
             $('#answer-input').prop('disabled', true).val('');
             $('#error-message').removeClass('show').hide();
+            $('#feedback').hide();
             
             const selectedGenres = $('#genre-select').val() || [];
             const selectedDecades = $('#decade-select').val() || [];
             
             console.log('Current filters:', { genres: selectedGenres, decades: selectedDecades });
             
+            // First update filters
             fetch('/update_filters', {
                 method: 'POST',
                 headers: {
@@ -335,7 +311,19 @@
                 })
             })
             .then(response => response.json())
+            .then(() => {
+                // Then get a new song
+                return fetch('/new-song');
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
             .then(data => {
+                console.log('Received song data:', data); // Debug log
+                
                 if (data.error) {
                     console.error('Error:', data.error);
                     const $error = $('#error-message');
@@ -343,8 +331,11 @@
                         .text(data.error)
                         .addClass('show')
                         .show();
-                    console.log('Error message shown:', $error.is(':visible'), $error.css('display'));
                     return;
+                }
+                
+                if (!data.artist || !data.song || !data.preview_url) {
+                    throw new Error('Invalid song data received');
                 }
                 
                 // Clear any previous error
@@ -356,6 +347,8 @@
                     artist: data.artist,
                     song: data.song
                 };
+                
+                console.log('Set current song to:', currentSong); // Debug log
                 
                 // Add ended event listener
                 currentAudio.addEventListener('ended', () => {
@@ -389,6 +382,25 @@
             }
         });
 
+        // Start game when username is submitted
+        document.getElementById('start-game').addEventListener('click', () => {
+            username = document.getElementById('username-input').value.trim();
+            if (username) {
+                fetch('/set_username', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ username: username })
+                })
+                .then(() => {
+                    document.getElementById('username-container').style.display = 'none';
+                    document.getElementById('game-container').style.display = 'block';
+                    loadNewSong();
+                });
+            }
+        });
+
         // Auto-start game if username is already set (after reload)
         fetch('/check-session')
             .then(response => response.json())
@@ -408,7 +420,6 @@
                 return;
             }
             loadNewSong();
-            resultModal.hide();
         });
 
         function showGameOver() {
@@ -425,12 +436,13 @@
             document.getElementById('answer-input').style.display = 'none';
             document.getElementById('nextSongButton').style.display = 'none';
             
-            const modalResult = document.getElementById('modalResult');
-            modalResult.innerHTML = `
+            const feedback = document.getElementById('feedback');
+            feedback.innerHTML = `
                 <h3 class="mb-4">Game Over!</h3>
                 <p class="modal-response">Final Score: ${score}/${MAX_SONGS}</p>
                 <button onclick="window.location.href = window.location.href + '?t=' + new Date().getTime()" class="btn btn-primary mt-3">Play Again</button>
             `;
+            feedback.style.display = 'block';
             
             // Update leaderboard
             updateLeaderboard();
@@ -440,7 +452,32 @@
         document.getElementById('submitButton').addEventListener('click', () => {
             const submitButton = document.getElementById('submitButton');
             const answerInput = document.getElementById('answer-input');
-            const guess = answerInput.value.trim();
+            const answer = answerInput.value.trim();
+            
+            if (!answer) {
+                const errorMessage = document.getElementById('error-message');
+                errorMessage.textContent = "Please enter an answer!";
+                errorMessage.classList.add('show');
+                return;
+            }
+            
+            // Hide error message if it was showing
+            document.getElementById('error-message').classList.remove('show');
+            
+            if (!currentSong) {
+                console.error('No current song data!');
+                $('#error-message')
+                    .text('Error: No song loaded. Please try refreshing the page.')
+                    .addClass('show')
+                    .show();
+                return;
+            }
+            
+            console.log('Submitting answer:', {
+                answer: answer,
+                artist: currentSong.artist,
+                song: currentSong.song
+            });
             
             // Disable submit button while checking
             submitButton.disabled = true;
@@ -450,27 +487,44 @@
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ guess: guess })
+                body: JSON.stringify({ 
+                    answer: answer,
+                    artist: currentSong.artist,
+                    song: currentSong.song
+                })
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
             .then(data => {
+                console.log('Received response:', data);
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
                 // Update score display
                 score = data.score;
                 total = data.total;
                 updateScore();
                 
                 // Show feedback
-                const modalResult = document.getElementById('modalResult');
-                modalResult.innerHTML = `
-                    <p class="modal-response">${data.message}</p>
-                    <p class="modal-answer">Correct Answer: "${data.correct_answer.song}" by <strong>${data.correct_answer.artist}</strong></p>
-                `;
-                resultModal.show();
+                const feedback = document.getElementById('feedback');
+                feedback.innerHTML = data.message || 'No feedback message received';
+                feedback.className = 'feedback ' + (data.correct ? 'correct' : 'incorrect');
+                feedback.style.display = 'block';
+                
+                // Hide submit button and show next song button
+                document.getElementById('submitButton').style.display = 'none';
+                document.getElementById('nextSongButton').style.display = 'block';
                 
                 // Clear input
                 answerInput.value = '';
                 
-                // Re-enable submit button
+                // Re-enable submit button (for next round)
                 submitButton.disabled = false;
                 
                 // If game is over, show game over screen after showing the answer
@@ -482,6 +536,10 @@
             })
             .catch(error => {
                 console.error('Error:', error);
+                $('#error-message')
+                    .text('Error: ' + error.message)
+                    .addClass('show')
+                    .show();
                 submitButton.disabled = false;
             });
         });
@@ -508,40 +566,6 @@
             $('#genre-select, #decade-select').on('change', function() {
                 loadNewSong();
             });
-        });
-    </script>
-</body>
-</html>
-            $('#genre-select').select2({
-                placeholder: 'Select genres...',
-                allowClear: true
-            });
-            
-            $('#decade-select').select2({
-                placeholder: 'Select decades...',
-                allowClear: true
-            });
-            
-            // Add change handlers for filters
-            $('#genre-select, #decade-select').on('change', function() {
-                loadNewSong();
-            });
-        });
-        
-        // Play Again button handler
-        $('#playAgainButton').on('click', function() {
-            // Reset UI
-            $('#score').text('0');
-            $('#total').text('0');
-            $('#feedback').hide();
-            $('#playAgainButton').hide();
-            
-            // Enable controls
-            $('#submitButton').prop('disabled', false);
-            $('#answer-input').prop('disabled', false).val('');
-            
-            // Load new song
-            loadNewSong();
         });
     </script>
 </body>

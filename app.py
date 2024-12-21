@@ -45,52 +45,66 @@ GENRE_MAPPING = {
              'rock and roll', 'album rock', 'modern rock', 'soft rock', 'yacht rock', 'dance rock',
              'roots rock', 'post-grunge', 'modern hard rock', 'modern alternative rock', 'baroque pop',
              'glam rock', 'progressive metal', 'rock en espanol', 'latin rock', 'mexican classic rock',
-             'piano rock', 'surf punk', 'indie surf', 'modern folk rock', 'modern power pop', 'new wave'],
+             'piano rock', 'surf punk', 'indie surf', 'modern folk rock', 'modern power pop', 'new wave',
+             'electronic rock', 'country rock', 'grunge', 'hair metal', 'blues-rock', 'rock ballads', 
+             'rock n roll', 'acoustic rock'],
              
     'pop': ['pop', 'pop rock', 'indie pop', 'synth-pop', 'dance pop', 'electropop', 'dream pop',
             'chamber pop', 'sophisti-pop', 'art pop', 'k-pop', 'j-pop', 'power pop', 'indie poptimism',
             'pop dance', 'pop folk', 'pop nacional', 'pop soul', 'pop emo', 'pop punk', 'pop r&b',
             'pop rap', 'canadian pop', 'uk pop', 'latin pop', 'adult standards', 'neo mellow',
-            'contemporary vocal jazz', 'vocal jazz', 'show tunes', 'easy listening'],
+            'contemporary vocal jazz', 'vocal jazz', 'show tunes', 'easy listening', 'bedroom pop',
+            'bubblegum', 'adult contemporary', 'puerto rican pop', 'colombian pop', 'pop-soul',
+            'bubblegum pop', 'candy pop', 'dark pop'],
             
     'electronic': ['electronic', 'electronica', 'edm', 'house', 'techno', 'trance', 'dubstep', 'ambient',
                   'drum and bass', 'electro', 'electronic trap', 'electro house', 'progressive house',
                   'deep house', 'tech house', 'tropical house', 'future bass', 'complextro', 'big room',
                   'brostep', 'filthstep', 'future garage', 'intelligent dance music', 'neo-synthpop',
                   'alternative dance', 'dance-punk', 'indietronica', 'canadian electronic', 'slap house',
-                  'filter house', 'disco house', 'nu disco', 'compositional ambient', 'ambient pop'],
+                  'filter house', 'disco house', 'nu disco', 'compositional ambient', 'ambient pop',
+                  'synthwave', 'retrowave', 'acid house', 'drumstep', 'hard trance', 'uk dance',
+                  'uk funky', 'cyberpunk'],
                   
     'hip hop': ['hip hop', 'rap', 'trap', 'gangster rap', 'underground hip hop', 'conscious hip hop',
                 'alternative hip hop', 'east coast hip hop', 'west coast rap', 'southern hip hop',
                 'atlanta hip hop', 'chicago rap', 'detroit hip hop', 'memphis rap', 'miami hip hop',
                 'houston rap', 'jazz rap', 'political hip hop', 'emo rap', 'cloud rap', 'melodic rap',
                 'rage rap', 'atl hip hop', 'atl trap', 'canadian hip hop', 'canadian trap',
-                'country rap', 'dfw rap', 'latin hip hop', 'lgbtq+ hip hop', 'plugg', 'pluggnb'],
+                'country rap', 'dfw rap', 'latin hip hop', 'lgbtq+ hip hop', 'plugg', 'pluggnb',
+                'dirty south', 'southern rap', 'g funk', 'east coast rap', 'crunk', 'trap latino',
+                'queens hip hop', 'underground hip-hop', 'golden age hip hop'],
                 
     'r&b': ['r&b', 'soul', 'funk', 'contemporary r&b', 'neo soul', 'motown', 'quiet storm',
             'new jack swing', 'gospel', 'southern soul', 'chicago soul', 'memphis soul', 'philly soul',
             'northern soul', 'soul blues', 'soul jazz', 'funk rock', 'funk metal', 'p funk',
             'synth funk', 'funk pop', 'jazz funk', 'alternative r&b', 'british soul', 'indie soul',
-            'trap soul', 'urban contemporary'],
+            'trap soul', 'urban contemporary', 'classic soul', 'neo-soul', 'latin soul', 'rhythm and blues',
+            'slow jams', 'funk paulista', 'funk rj', 'funk carioca', 'latin alternative',
+            'tropical alternativo'],
             
     'metal': ['metal', 'heavy metal', 'thrash metal', 'death metal', 'black metal', 'doom metal',
               'power metal', 'progressive metal', 'folk metal', 'gothic metal', 'industrial metal',
               'symphonic metal', 'alternative metal', 'nu metal', 'metalcore', 'melodic metalcore',
               'canadian metal', 'neo classical metal', 'old school thrash', 'prog metal',
-              'uk metalcore'],
+              'uk metalcore', 'rap metal', 'melodic black metal', 'traditional doom metal',
+              'glam metal', 'progressive metalcore'],
               
     'jazz': ['jazz', 'swing', 'bebop', 'big band', 'jazz fusion', 'cool jazz', 'hard bop',
              'contemporary jazz', 'smooth jazz', 'latin jazz', 'modal jazz', 'post-bop', 'free jazz',
              'jazz blues', 'jazz funk', 'jazz pop', 'jazz rap', 'jazz trio', 'jazz trumpet',
-             'new orleans jazz', 'dixieland', 'smooth saxophone'],
+             'new orleans jazz', 'dixieland', 'smooth saxophone', 'jazz-funk', 'soul jazz'],
              
-    'folk': ['folk', 'folk rock', 'indie folk', 'contemporary folk', 'traditional folk',
+    'folk': ['folk', 'folk rock', 'indie folk', 'contemporary folk',
+             'traditional folk',
              'american folk revival', 'folk-pop', 'boston folk', 'stomp and holler',
-             'irish singer-songwriter', 'singer-songwriter', 'singer-songwriter pop'],
+             'irish singer-songwriter', 'singer-songwriter', 'singer-songwriter pop',
+             'folk-country', 'irish folk'],
              
     'blues': ['blues', 'chicago blues', 'delta blues', 'electric blues', 'country blues',
               'contemporary blues', 'blues rock', 'modern blues', 'modern blues rock',
-              'piano blues', 'punk blues', 'soul blues'],
+              'piano blues', 'punk blues', 'soul blues', 'swamp blues', 'classic blues',
+              'harmonica blues'],
               
     'classical': ['classical', 'orchestra', 'chamber music', 'symphony', 'opera', 'baroque',
                   'romantic', 'contemporary classical', 'minimalism', 'modern classical',
@@ -98,16 +112,18 @@ GENRE_MAPPING = {
                   'early romantic era', 'late romantic era', 'post-romantic era',
                   'british contemporary classical', 'polish classical', 'japanese classical',
                   'classical cello', 'classical tenor', 'early music', 'impressionism',
-                  'neo-classical', 'orchestral performance', 'orchestral soundtrack'],
+                  'neo-classical', 'orchestral performance', 'orchestral soundtrack',
+                  'german baroque', 'italian baroque', 'german romanticism'],
                   
     'world': ['world', 'latin', 'reggae', 'ska', 'afrobeat', 'brazilian', 'caribbean',
               'cumbia', 'salsa', 'samba', 'bossa nova', 'reggaeton', 'tropical',
               'urbano latino', 'reggaeton flow', 'reggaeton chileno', 'reggaeton colombiano',
-              'roots reggae', 'reggae fusion', 'ska punk', 'ska mexicano'],
+              'roots reggae', 'reggae fusion', 'ska punk', 'ska mexicano', 'dancehall',
+              'funk paulista', 'funk rj', 'funk carioca', 'latin alternative',
+              'tropical alternativo'],
               
     'punk': ['punk', 'punk rock', 'pop punk', 'hardcore punk', 'post-punk', 'art punk',
-             'skate punk', 'chicago punk', 'canadian punk', 'socal pop punk',
-             'chicago hardcore', 'emo', 'screamo']
+             'skatepunk', 'melodic punk', 'melodic punk rock', 'canadian pop punk']
 }
 
 # Create reverse mapping for quick lookups
@@ -351,11 +367,13 @@ def get_new_song(selected_genres=None, selected_decades=None, max_attempts=5):
                 if len(recent_songs) > MAX_RECENT_SONGS:
                     recent_songs.pop()
                 
-                return jsonify({
+                response_data = {
                     'preview_url': preview_url,
                     'artist': song['Artist'],
                     'song': song['Song']
-                })
+                }
+                logger.info(f"Returning song data: {response_data}")  
+                return jsonify(response_data)
             else:
                 logger.info(f"No preview URL found, trying another song...")
         
@@ -380,12 +398,22 @@ def update_filters():
         
         logger.info(f"Updating filters - Genres: {selected_genres}, Decades: {selected_decades}")
         
-        # Apply filters and get a new song
-        return get_new_song(selected_genres, selected_decades)
+        # Store filters in session
+        session['selected_genres'] = selected_genres
+        session['selected_decades'] = selected_decades
+        
+        return jsonify({'success': True})
         
     except Exception as e:
         logger.error(f"Error updating filters: {str(e)}")
-        return jsonify({'error': str(e)})
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/new-song')
+def new_song():
+    """Get a new song."""
+    selected_genres = session.get('selected_genres', [])
+    selected_decades = session.get('selected_decades', [])
+    return get_new_song(selected_genres, selected_decades)
 
 # Database setup
 def init_db():
@@ -432,25 +460,32 @@ def index():
                          genres=formatted_genres,
                          decades=formatted_decades)
 
-@app.route('/new-song')
-def new_song():
-    """Get a new song."""
-    return get_new_song()
-
 @app.route('/check-answer', methods=['POST'])
 def check_answer():
     """Check if the answer is correct."""
     try:
         data = request.get_json()
-        user_answer = data.get('answer', '').lower().strip()
-        correct_artist = data.get('artist', '').lower().strip()
-        correct_song = data.get('song', '').lower().strip()
+        logger.info(f"Received answer data: {data}")  # Log the raw data
+        
+        if not data or not isinstance(data, dict):
+            logger.error("Invalid data received")
+            return jsonify({'error': 'Invalid data format'}), 400
+            
+        user_answer = clean_text(data.get('answer', '').lower())
+        correct_artist = clean_text(data.get('artist', '').lower())
+        correct_song = clean_text(data.get('song', '').lower())
+        
+        # Validate required fields
+        if not correct_artist or not correct_song:
+            logger.error(f"Missing required fields - artist: {correct_artist}, song: {correct_song}")
+            return jsonify({'error': 'Missing song or artist data'}), 400
         
         logger.info(f"Checking answer: {user_answer}")
         logger.info(f"Correct answer: {correct_song} by {correct_artist}")
         
         # Check if either the song or artist name is in the answer
         is_correct = correct_song in user_answer or correct_artist in user_answer
+        logger.info(f"Answer is correct: {is_correct}")
         
         # Update session scores
         session['score'] = session.get('score', 0) + (1 if is_correct else 0)
@@ -461,7 +496,7 @@ def check_answer():
         else:
             message = random.choice(INCORRECT_RESPONSES)
             # Format artist name in bold
-            message += f" The correct answer was '{correct_song}' by <strong>{data.get('artist')}</strong>."
+            message += f" The correct answer was '{data.get('song')}' by <strong>{data.get('artist')}</strong>."
         
         # Check if game is over
         game_over = session.get('total', 0) >= MAX_SONGS
@@ -476,9 +511,14 @@ def check_answer():
             if username:
                 # Check if score makes it to leaderboard (top 10)
                 with get_db() as db:
-                    current_scores = db.execute(
+                    cursor = db.execute(
                         'SELECT score FROM scores ORDER BY score DESC LIMIT 10'
-                    ).fetchall()
+                    )
+                    current_scores = []
+                    for row in cursor.fetchall():
+                        current_scores.append({
+                            'score': row[0]  # score is the first column
+                        })
                     
                     # If less than 10 scores or score beats the lowest score
                     if len(current_scores) < 10 or final_score > current_scores[-1]['score']:
@@ -505,20 +545,19 @@ def check_answer():
                 'made_leaderboard': made_leaderboard
             })
         
-        return jsonify({
+        response_data = {
             'correct': is_correct,
             'message': message,
             'score': session.get('score', 0),
             'total': session.get('total', 0),
             'game_over': game_over
-        })
+        }
+        logger.info(f"Sending response: {response_data}")  # Log the response
+        return jsonify(response_data)
         
     except Exception as e:
         logger.error(f"Error checking answer: {str(e)}")
-        return jsonify({
-            'error': 'Error checking answer',
-            'message': str(e)
-        })
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/leaderboard')
 def leaderboard():
@@ -530,12 +569,14 @@ def leaderboard():
                 ORDER BY score DESC 
                 LIMIT 10
             ''')
-            top_scores = cursor.fetchall()
-            return jsonify([{
-                'username': row[0],
-                'score': row[1],
-                'timestamp': row[2]
-            } for row in top_scores])
+            top_scores = []
+            for row in cursor.fetchall():
+                top_scores.append({
+                    'username': row[0],  # username
+                    'score': row[1],     # score
+                    'timestamp': row[2]   # timestamp
+                })
+            return jsonify(top_scores)
     except Exception as e:
         logger.error(f"Error fetching leaderboard: {str(e)}")
         return jsonify({'error': str(e)}), 500
