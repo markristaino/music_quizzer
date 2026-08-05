@@ -214,43 +214,12 @@
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script>
         let currentAudio = null;
-        let currentSong = null;  
+        let hasSong = false;
         let score = 0;
         let total = 0;
-        const MAX_SONGS = 6;
+        const MAX_SONGS = {{ max_songs }};
         let username = '';
-        
-        // Fun response variations
-        const correctResponses = [
-            "🎯 You absolute genius!",
-            "🎸 Rock on, music master!",
-            "🌟 You're on fire!",
-            "🎼 Perfect pitch, maestro!",
-            "🎵 You're crushing it!",
-            "🎧 Those ears don't lie!",
-            "🎪 Ladies and gentlemen, we have a winner!",
-            "🎭 You're a musical detective!",
-            "🎪 Standing ovation for you!",
-            "🎨 Pure artistic brilliance!"
-        ];
-        
-        const incorrectResponses = [
-            "🤔 Nice try, Sherlock!",
-            "😅 Close, but no guitar!",
-            "🎭 Plot twist - different artist!",
-            "🎪 Back to music school!",
-            "🎵 Almost had it!",
-            "🎧 Time to tune those ears!",
-            "🌟 Keep the rhythm going!",
-            "🎼 Not quite the right note!",
-            "🎸 Rock and... roll with it!",
-            "🎯 Missing the mark, but keep shooting!"
-        ];
-        
-        function getRandomResponse(responses) {
-            return responses[Math.floor(Math.random() * responses.length)];
-        }
-        
+
         function updateScore() {
             document.getElementById('score').textContent = score;
             document.getElementById('total').textContent = total;
@@ -265,11 +234,21 @@
                     scores.forEach((score, index) => {
                         const entry = document.createElement('div');
                         entry.className = 'list-group-item d-flex justify-content-between align-items-center';
-                        entry.innerHTML = `
-                            <span class="badge bg-primary rounded-pill me-2">${index + 1}</span>
-                            <span class="flex-grow-1">${score.username}</span>
-                            <span class="badge bg-secondary">${score.score}</span>
-                        `;
+
+                        const rank = document.createElement('span');
+                        rank.className = 'badge bg-primary rounded-pill me-2';
+                        rank.textContent = index + 1;
+
+                        // textContent, not innerHTML - usernames are player-supplied
+                        const name = document.createElement('span');
+                        name.className = 'flex-grow-1';
+                        name.textContent = score.username;
+
+                        const points = document.createElement('span');
+                        points.className = 'badge bg-secondary';
+                        points.textContent = score.score;
+
+                        entry.append(rank, name, points);
                         leaderboardList.appendChild(entry);
                     });
                 });
@@ -284,7 +263,8 @@
                 currentAudio.src = '';
                 currentAudio = null;
             }
-            
+            hasSong = false;
+
             // Reset UI state
             $('#playButton i').removeClass('fa-pause').addClass('fa-play');
             $('#playButton').hide();
@@ -315,15 +295,8 @@
                 // Then get a new song
                 return fetch('/new-song');
             })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Network response was not ok');
-                }
-                return response.json();
-            })
+            .then(response => response.json())
             .then(data => {
-                console.log('Received song data:', data); // Debug log
-                
                 if (data.error) {
                     console.error('Error:', data.error);
                     const $error = $('#error-message');
@@ -333,23 +306,19 @@
                         .show();
                     return;
                 }
-                
-                if (!data.artist || !data.song || !data.preview_url) {
+
+                if (!data.preview_url) {
                     throw new Error('Invalid song data received');
                 }
-                
+
                 // Clear any previous error
                 $('#error-message').removeClass('show').hide();
-                
-                // Update audio source and show play button
+
+                // Update audio source and show play button.
+                // The answer stays on the server - we only get audio.
                 currentAudio = new Audio(data.preview_url);
-                currentSong = {
-                    artist: data.artist,
-                    song: data.song
-                };
-                
-                console.log('Set current song to:', currentSong); // Debug log
-                
+                hasSong = true;
+
                 // Add ended event listener
                 currentAudio.addEventListener('ended', () => {
                     $('#playButton i').removeClass('fa-pause').addClass('fa-play');
@@ -464,44 +433,27 @@
             // Hide error message if it was showing
             document.getElementById('error-message').classList.remove('show');
             
-            if (!currentSong) {
-                console.error('No current song data!');
+            if (!hasSong) {
+                console.error('No song loaded!');
                 $('#error-message')
                     .text('Error: No song loaded. Please try refreshing the page.')
                     .addClass('show')
                     .show();
                 return;
             }
-            
-            console.log('Submitting answer:', {
-                answer: answer,
-                artist: currentSong.artist,
-                song: currentSong.song
-            });
-            
+
             // Disable submit button while checking
             submitButton.disabled = true;
-            
+
             fetch('/check-answer', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ 
-                    answer: answer,
-                    artist: currentSong.artist,
-                    song: currentSong.song
-                })
+                body: JSON.stringify({ answer: answer })
             })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Network response was not ok');
-                }
-                return response.json();
-            })
+            .then(response => response.json())
             .then(data => {
-                console.log('Received response:', data);
-                
                 if (data.error) {
                     throw new Error(data.error);
                 }

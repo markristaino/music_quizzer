@@ -1,0 +1,13 @@
+# Dependencies for the offline data scripts only (billboard_updater.py,
+# spotify_songs.py, analyze_songs.py, filter_obscure_songs.py, music_quizzer.py).
+# The web app does not need these - keep them out of requirements.txt.
+-r requirements.txt
+
+billboard.py==7.1.0
+spotipy==2.24.0
+pylast==5.3.0
+tqdm==4.66.5
+requests==2.32.3
+
+# Tests
+pytest==7.4.0

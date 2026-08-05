@@ -1,9 +1,6 @@
-flask>=2.0.0
-werkzeug==2.0.1
-pandas>=1.3.0
-numpy==1.21.6
-deezer-python>=3.0.0
-gunicorn==20.1.0
-billboard.py>=7.0.0
-spotipy>=2.19.0
-requests>=2.26.0
+flask==3.0.0
+werkzeug==3.0.3
+pandas==2.3.3
+numpy==1.26.4
+deezer-python==7.1.0
+gunicorn==23.0.0
