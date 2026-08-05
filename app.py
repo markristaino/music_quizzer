@@ -45,6 +45,17 @@ DATA_FILE = os.path.join(BASE_DIR, 'updated_spotify_data_new.csv')
 FALLBACK_DATA_FILE = os.path.join(BASE_DIR, 'billboard_lyrics_1964-2015.csv')
 DB_PATH = os.environ.get('SCORES_DB', os.path.join(BASE_DIR, 'scores.db'))
 
+# Hosts like Heroku wipe the local filesystem on every restart, which loses a
+# SQLite leaderboard. Use Postgres whenever DATABASE_URL is set; SQLite locally.
+DATABASE_URL = os.environ.get('DATABASE_URL', '')
+if DATABASE_URL.startswith('postgres://'):
+    # Heroku still hands out the legacy scheme; psycopg2 wants the modern one
+    DATABASE_URL = 'postgresql://' + DATABASE_URL[len('postgres://'):]
+USE_POSTGRES = DATABASE_URL.startswith('postgresql://')
+
+if USE_POSTGRES:
+    import psycopg2
+
 MAX_SONGS = 6              # Songs per game
 MAX_RECENT_SONGS = 50      # Per-player replay memory
 MAX_USERNAME_LENGTH = 32
@@ -393,25 +404,34 @@ def new_song():
 
 
 # Database setup
-def init_db():
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.execute('''
-        CREATE TABLE IF NOT EXISTS scores (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT NOT NULL,
-            score INTEGER NOT NULL,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-        ''')
+def sql(query):
+    """Queries are written with SQLite '?' placeholders; Postgres wants '%s'."""
+    return query.replace('?', '%s') if USE_POSTGRES else query
 
 
 @contextmanager
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = psycopg2.connect(DATABASE_URL) if USE_POSTGRES else sqlite3.connect(DB_PATH)
     try:
         yield conn
     finally:
         conn.close()
+
+
+def init_db():
+    id_column = ('id SERIAL PRIMARY KEY' if USE_POSTGRES
+                 else 'id INTEGER PRIMARY KEY AUTOINCREMENT')
+    with get_db() as conn:
+        conn.cursor().execute(f'''
+        CREATE TABLE IF NOT EXISTS scores (
+            {id_column},
+            username TEXT NOT NULL,
+            score INTEGER NOT NULL,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        ''')
+        conn.commit()
+    logger.info(f"Leaderboard storage: {'Postgres' if USE_POSTGRES else DB_PATH}")
 
 
 # Initialize database
@@ -442,16 +462,18 @@ def index():
 def record_score(username, final_score):
     """Save a finished game and report whether it reached the leaderboard."""
     with get_db() as db:
-        cursor = db.execute(
-            'SELECT score FROM scores ORDER BY score DESC LIMIT ?', (LEADERBOARD_SIZE,)
+        cursor = db.cursor()
+        cursor.execute(
+            sql('SELECT score FROM scores ORDER BY score DESC LIMIT ?'),
+            (LEADERBOARD_SIZE,)
         )
         current_scores = [row[0] for row in cursor.fetchall()]
         made_leaderboard = (
             len(current_scores) < LEADERBOARD_SIZE or final_score > current_scores[-1]
         )
 
-        db.execute('INSERT INTO scores (username, score) VALUES (?, ?)',
-                   (username, final_score))
+        cursor.execute(sql('INSERT INTO scores (username, score) VALUES (?, ?)'),
+                       (username, final_score))
         db.commit()
 
     return made_leaderboard
@@ -532,14 +554,15 @@ def check_answer():
 def leaderboard():
     try:
         with get_db() as conn:
-            cursor = conn.execute('''
+            cursor = conn.cursor()
+            cursor.execute(sql('''
                 SELECT username, score, timestamp
                 FROM scores
-                ORDER BY score DESC
+                ORDER BY score DESC, timestamp ASC
                 LIMIT ?
-            ''', (LEADERBOARD_SIZE,))
+            '''), (LEADERBOARD_SIZE,))
             return jsonify([
-                {'username': row[0], 'score': row[1], 'timestamp': row[2]}
+                {'username': row[0], 'score': row[1], 'timestamp': str(row[2])}
                 for row in cursor.fetchall()
             ])
     except Exception as e:

@@ -25,7 +25,7 @@ def client(monkeypatch):
     quiz.app.config['TESTING'] = True
 
     with quiz.get_db() as db:
-        db.execute('DELETE FROM scores')
+        db.cursor().execute('DELETE FROM scores')
         db.commit()
 
     with quiz.app.test_client() as client:

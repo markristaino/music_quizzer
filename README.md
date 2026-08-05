@@ -40,8 +40,9 @@ Deezer lookups are stubbed, so the tests run without network access.
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `SECRET_KEY` | random per boot | Signs session cookies. **Set this in production** — without it, every restart logs everyone out. |
+| `DATABASE_URL` | unset | Postgres connection string for the leaderboard. Set it and scores persist; leave it unset and the app falls back to local SQLite. |
 | `PORT` | `8080` | Port to bind |
-| `SCORES_DB` | `scores.db` next to `app.py` | SQLite leaderboard path |
+| `SCORES_DB` | `scores.db` next to `app.py` | SQLite leaderboard path (ignored when `DATABASE_URL` is set) |
 | `SESSION_COOKIE_SECURE` | on, except when running `app.py` directly | Require HTTPS for session cookies |
 | `FLASK_DEBUG` | off | Flask debug mode (local only) |
 
@@ -49,8 +50,16 @@ Deezer lookups are stubbed, so the tests run without network access.
 
 Deployed to Heroku from the `main` branch (`Procfile` runs gunicorn).
 
-Note: the leaderboard is SQLite on the dyno's local disk, which Heroku wipes on every
-restart. Scores do not survive a redeploy.
+The leaderboard needs Postgres — Heroku wipes the dyno's local disk on every restart,
+so SQLite would lose every score on redeploy. Attach a database once:
+
+```bash
+heroku addons:create heroku-postgresql:essential-0
+heroku config:set SECRET_KEY="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
+```
+
+The addon sets `DATABASE_URL` automatically and the app creates its table on boot.
+Nothing else to configure.
 
 ## Data
 
