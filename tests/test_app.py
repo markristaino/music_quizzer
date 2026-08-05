@@ -14,6 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ['SCORES_DB'] = os.path.join(tempfile.mkdtemp(), 'test_scores.db')
 
 import app as quiz  # noqa: E402
+from artists import is_female_vocal  # noqa: E402
 
 FAKE_PREVIEW = 'https://example.invalid/preview.mp3'
 
@@ -648,3 +649,45 @@ def test_clean_text():
     assert quiz.clean_text("Don't Stop (Remastered)") == 'Dont Stop'
     assert quiz.clean_text('Song feat. Someone') == 'Song Someone'
     assert quiz.clean_text('  multiple   spaces  ') == 'multiple spaces'
+
+
+# --- Female-vocal detection ---------------------------------------------------
+
+@pytest.mark.parametrize('artist, genres', [
+    ('Taylor Swift', 'pop'),                       # named, thin tags
+    ('Ariana Grande', 'pop'),
+    ('Olivia Rodrigo', 'pop'),
+    ('Taylor Swift featuring Post Malone', 'pop'), # she still leads
+    ('Ella Langley & Morgan Wallen', 'country'),   # billed first
+    ('Lady Gaga and Bruno Mars', 'pop'),
+    ('Aretha Franklin', 'soul,female vocalists'),  # found by tag
+    ('The Supremes', 'motown,girl group'),
+])
+def test_female_fronted_songs_are_recognised(artist, genres):
+    assert is_female_vocal(artist, genres)
+
+
+@pytest.mark.parametrize('artist, genres', [
+    ('Tim McGraw featuring Taylor Swift and Keith Urban', 'country'),
+    ('Boys Like Girls featuring Taylor Swift', 'pop punk'),
+    ('The Rolling Stones', 'rock,male vocalists'),   # "female" is inside "male"
+    ('Drake', None),
+])
+def test_others_are_not(artist, genres):
+    assert not is_female_vocal(artist, genres)
+
+
+def test_one_tagged_song_marks_the_whole_artist():
+    """Tags arrive unevenly, so an artist is judged as a whole."""
+    import pandas as pd
+
+    df = pd.DataFrame([
+        {'Artist': 'Aretha Franklin', 'Genres': 'soul,female vocalists'},
+        {'Artist': 'Aretha Franklin', 'Genres': 'soul'},          # thin tags
+        {'Artist': 'Aretha Franklin featuring Ray Charles', 'Genres': None},
+        {'Artist': 'Marvin Gaye', 'Genres': 'soul'},
+    ])
+
+    marked = quiz.female_fronted(df)
+
+    assert list(marked) == [True, True, True, False]

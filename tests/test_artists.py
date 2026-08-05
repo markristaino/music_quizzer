@@ -6,7 +6,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from artists import canonical_artist, is_excluded  # noqa: E402
+from artists import canonical_artist, is_excluded, primary_artist  # noqa: E402
 
 
 @pytest.mark.parametrize('artist, year', [

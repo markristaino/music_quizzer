@@ -37,6 +37,72 @@ ARTIST_ALIASES = {
 }
 
 
+# Ways a credit names guests after the lead. Deliberately no " & ", " and " or
+# " x " - those join real acts (Hall & Oates, Lil Nas X, Tony Orlando and Dawn).
+FEATURED_SEPARATORS = (
+    ' featuring ', ' feat. ', ' feat ', ' ft. ', ' ft ', ' f/ ',
+    ' duet with ', ' with ', ' vs. ', ' vs ', ' presents ', ' pres. ',
+)
+
+
+def primary_artist(artist):
+    """The billed lead, without any guests.
+
+    "Chris Brown featuring Usher and Rick Ross" -> "Chris Brown"
+    """
+    name = ' '.join(str(artist).split())
+    padded = ' ' + name.lower() + ' '
+
+    cut = len(name)
+    for separator in FEATURED_SEPARATORS:
+        found = padded.find(separator)
+        if found != -1:
+            cut = min(cut, found)
+
+    return name[:cut].strip() or name
+
+
+# Artists we know are female-fronted. Last.fm's tags are crowd-sourced and
+# uneven - most Taylor Swift rows carry only "pop" - so naming them here is the
+# only reliable way. Matched on the lead, so "X featuring her" doesn't count.
+FEMALE_VOCAL_ARTISTS = {
+    'taylor swift',
+    'ariana grande',
+    'olivia rodrigo',
+    'ella langley',
+    'alyssa grace',
+    'lady gaga',
+    'gigi perez',
+}
+
+# Tags that mark a female vocal. Matched whole, never as substrings - "female"
+# contains "male", and that way round the test would invert.
+FEMALE_VOCAL_TAGS = {
+    'female vocalists', 'female vocalist', 'female', 'female rap',
+    'female fronted', 'girl group', 'girl groups', 'classic girl group',
+    'country women', 'women in rock',
+}
+
+
+def is_female_vocal(artist, genres=None):
+    """Is this song female-fronted?
+
+    The named list wins; tags are the fallback. Judged on the billed lead, so
+    "Tim McGraw featuring Taylor Swift" is not counted.
+    """
+    # Prefix match on the whole credit, so joint billings count when she is
+    # named first ("Ella Langley & Morgan Wallen") but not when she is a guest.
+    credit = normalise_artist(artist)
+    lead = normalise_artist(primary_artist(artist))
+    for known in FEMALE_VOCAL_ARTISTS:
+        if credit == known or credit.startswith(known + ' ') or lead == known:
+            return True
+
+    if not isinstance(genres, str):
+        return False
+    return any(tag.strip().lower() in FEMALE_VOCAL_TAGS for tag in genres.split(','))
+
+
 def normalise_artist(artist):
     return ' '.join(str(artist).lower().split())
 

@@ -9,6 +9,7 @@ import secrets
 from difflib import SequenceMatcher
 
 import library
+from artists import is_female_vocal, primary_artist
 from library import USE_POSTGRES, get_db, sql
 from previews import (EXPIRING_SOURCES, clean_text, get_preview_url,
                       refresh_preview)
@@ -85,14 +86,6 @@ PREVIEW_SEARCH_ATTEMPTS = 5
 # Set either to 1.0 to switch that pull off.
 RECENCY_WEIGHT = 3.0
 FEMALE_VOCAL_WEIGHT = 2.0
-
-# Last.fm tags that mark a female vocal. Matched whole, never as substrings -
-# "female" contains "male", and that way round the test would invert.
-FEMALE_VOCAL_TAGS = {
-    'female vocalists', 'female vocalist', 'female', 'female rap',
-    'female fronted', 'girl group', 'girl groups', 'classic girl group',
-    'country women', 'women in rock',
-}
 
 # Genre mapping
 GENRE_MAPPING = {
@@ -231,11 +224,19 @@ INCORRECT_RESPONSES = [
 ]
 
 
-def has_female_vocal(genres):
-    """Do this artist's tags mark a female vocal?"""
-    if not isinstance(genres, str):
-        return False
-    return any(tag.strip().lower() in FEMALE_VOCAL_TAGS for tag in genres.split(','))
+def female_fronted(df):
+    """Which songs count as female-fronted, decided per artist.
+
+    Last.fm tags arrive unevenly - one Taylor Swift row carries "female
+    vocalists" while twenty-seven carry only "pop". So if any song by an artist
+    is marked, all of theirs are.
+    """
+    leads = df['Artist'].apply(primary_artist).str.lower().str.strip()
+    marked = [is_female_vocal(a, g) for a, g in zip(df['Artist'], df['Genres'])]
+    marked = pd.Series(marked, index=df.index)
+
+    known = set(leads[marked])
+    return leads.isin(known)
 
 
 def recency_weight(year, oldest, newest):
@@ -258,7 +259,7 @@ def song_weights(df):
     weights = years.apply(lambda y: recency_weight(y, oldest, newest))
 
     if 'Genres' in df.columns:
-        female = df['Genres'].apply(has_female_vocal)
+        female = female_fronted(df)
         weights = weights * female.map({True: FEMALE_VOCAL_WEIGHT, False: 1.0})
         logger.info(f'{int(female.sum())} songs tagged as female-fronted')
 
@@ -334,29 +335,18 @@ VOWELS = set('aeiouy')
 ANSWER_STOPWORDS = {'the', 'and', 'featuring', 'with', 'their', 'band'}
 
 
-# Ways a credit names guests after the lead. Deliberately no " & ", " and " or
-# " x " - those join real acts (Hall & Oates, Lil Nas X, Tony Orlando and Dawn).
-FEATURED_SEPARATORS = (
-    ' featuring ', ' feat. ', ' feat ', ' ft. ', ' ft ', ' f/ ',
-    ' duet with ', ' with ', ' vs. ', ' vs ', ' presents ', ' pres. ',
-)
+def _similar(a, b, threshold):
+    return SequenceMatcher(None, a, b).ratio() >= threshold
 
 
-def primary_artist(artist):
-    """The billed lead, without any guests.
+def consonant_skeleton(value):
+    """The consonants of a name, which survive most phonetic misspellings.
 
-    "Chris Brown featuring Usher and Rick Ross" -> "Chris Brown"
+    "tpayne" and "tpain" both reduce to "tpn". Character-similarity scores them
+    at 0.67 and reject them; people type artist names by ear all the time.
     """
-    name = ' '.join(str(artist).split())
-    padded = ' ' + name.lower() + ' '
+    return ''.join(c for c in value if c.isalnum() and c not in VOWELS)
 
-    cut = len(name)
-    for separator in FEATURED_SEPARATORS:
-        found = padded.find(separator)
-        if found != -1:
-            cut = min(cut, found)
-
-    return name[:cut].strip() or name
 
 
 def hint_for(current_song):
@@ -380,19 +370,6 @@ def hint_for(current_song):
     if not parts:
         return ''
     return 'The artist ' + ' and '.join(parts) + '.'
-
-
-def consonant_skeleton(value):
-    """The consonants of a name, which survive most phonetic misspellings.
-
-    "tpayne" and "tpain" both reduce to "tpn". Character-similarity scores them
-    at 0.67 and reject them; people type artist names by ear all the time.
-    """
-    return ''.join(c for c in value if c.isalnum() and c not in VOWELS)
-
-
-def _similar(a, b, threshold):
-    return SequenceMatcher(None, a, b).ratio() >= threshold
 
 
 def answer_matches(guess, correct):
