@@ -108,6 +108,35 @@ def test_check_answer_without_a_song_is_rejected(client):
     assert response.status_code == 400
 
 
+def test_lost_session_is_flagged_so_the_browser_can_recover(client):
+    """A signed-out session must not strand the player on a dead error."""
+    start_game(client)
+    payload = client.post('/check-answer', json={'answer': 'anything'}).get_json()
+
+    assert payload['reason'] == 'no_song'
+    assert 'error' in payload
+
+
+def test_client_errors_are_logged(client, caplog):
+    start_game(client)
+    client.get('/new-song')
+
+    response = client.post('/log-error', json={
+        'context': 'audio-load', 'detail': 'code=4 host=example.invalid'})
+
+    assert response.status_code == 204
+    assert 'client error [audio-load]' in caplog.text
+    assert 'code=4' in caplog.text
+
+
+def test_client_error_fields_are_truncated(client, caplog):
+    client.post('/log-error', json={'context': 'x' * 200, 'detail': 'y' * 5000})
+
+    logged = caplog.text
+    assert 'x' * (quiz.CLIENT_ERROR_CONTEXT_LENGTH + 1) not in logged
+    assert 'y' * (quiz.CLIENT_ERROR_DETAIL_LENGTH + 1) not in logged
+
+
 def test_empty_answer_is_not_correct(client):
     start_game(client)
     client.get('/new-song')
