@@ -174,6 +174,32 @@ def test_finished_game_reaches_the_leaderboard(client):
     assert board[0]['score'] == result['score']
 
 
+def test_a_score_of_zero_is_not_recorded(client):
+    start_game(client, 'blanked')
+
+    for _ in range(quiz.MAX_SONGS):
+        client.get('/new-song')
+        result = client.post('/check-answer', json={'answer': 'wrong'}).get_json()
+
+    assert result['score'] == 0
+    assert result['made_leaderboard'] is False
+    assert client.get('/leaderboard').get_json() == []
+
+
+def test_one_right_still_counts(client):
+    start_game(client, 'scraped-by')
+
+    for round_number in range(quiz.MAX_SONGS):
+        client.get('/new-song')
+        answer = current_answer(client)
+        guess = answer['artist'] if round_number == 0 else 'wrong'
+        result = client.post('/check-answer', json={'answer': guess}).get_json()
+
+    assert result['score'] == 1
+    board = client.get('/leaderboard').get_json()
+    assert [entry['username'] for entry in board] == ['scraped-by']
+
+
 def test_username_stays_after_game_over(client):
     start_game(client, 'persistent')
 
@@ -295,6 +321,68 @@ def test_parent_genre_mapping():
     assert quiz.map_to_parent_genre('  TRAP ') == 'hip hop'
     assert quiz.map_to_parent_genre('rock') == 'rock'
     assert quiz.map_to_parent_genre('polka') == 'polka'  # unknown passes through
+
+
+@pytest.mark.parametrize('credit, lead', [
+    ('Chris Brown featuring Usher and Rick Ross', 'Chris Brown'),
+    ('Usher featuring Lil Jon and Ludacris', 'Usher'),
+    ('Mark Ronson featuring Bruno Mars', 'Mark Ronson'),
+    ('Gotye feat. Kimbra', 'Gotye'),
+    ('Flo Rida ft. T-Pain', 'Flo Rida'),
+    ('Santana with Rob Thomas', 'Santana'),
+    # Joint acts are not guest credits and must survive intact
+    ('Simon & Garfunkel', 'Simon & Garfunkel'),
+    ('Hall & Oates', 'Hall & Oates'),
+    ('Tony Orlando and Dawn', 'Tony Orlando and Dawn'),
+    ('Lil Nas X', 'Lil Nas X'),
+    ('Lady Gaga and Bruno Mars', 'Lady Gaga and Bruno Mars'),
+    ('Captain & Tennille', 'Captain & Tennille'),
+])
+def test_primary_artist(credit, lead):
+    assert quiz.primary_artist(credit) == lead
+
+
+def test_naming_the_lead_is_enough(client):
+    start_game(client)
+    client.get('/new-song')
+
+    with client.session_transaction() as session:
+        session['current_song'] = {
+            'artist': 'Chris Brown featuring Usher and Rick Ross',
+            'song': 'Deuces',
+        }
+
+    result = client.post('/check-answer', json={'answer': 'chris brown'}).get_json()
+    assert result['correct'] is True
+
+
+def test_naming_only_a_guest_is_not_enough(client):
+    start_game(client)
+    client.get('/new-song')
+
+    with client.session_transaction() as session:
+        session['current_song'] = {
+            'artist': 'Chris Brown featuring Usher and Rick Ross',
+            'song': 'Deuces',
+        }
+
+    result = client.post('/check-answer', json={'answer': 'rick ross'}).get_json()
+    assert result['correct'] is False
+
+
+def test_the_full_credit_still_counts(client):
+    start_game(client)
+    client.get('/new-song')
+
+    with client.session_transaction() as session:
+        session['current_song'] = {
+            'artist': 'Mark Ronson featuring Bruno Mars',
+            'song': 'Uptown Funk',
+        }
+
+    result = client.post('/check-answer',
+                         json={'answer': 'mark ronson featuring bruno mars'}).get_json()
+    assert result['correct'] is True
 
 
 def matches(guess, correct):

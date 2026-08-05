@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 PREVIEW_BATCH = 500     # Songs to resolve audio for per run
 GENRE_BATCH = 200       # Artists to look up per run
+COMMIT_EVERY = 50       # Save partial progress this often
 
 
 def add_current_chart():
@@ -83,13 +84,20 @@ def resolve_audio(limit=PREVIEW_BATCH):
 
     logger.info(f'Resolving audio for {len(candidates)} songs')
     checked_at = datetime.now()
-    rows, found = [], 0
+    pending, found, checked = [], 0, 0
+
+    def flush():
+        if pending:
+            library.upsert_songs(pending)
+            pending.clear()
+            logger.info(f'  {checked}/{len(candidates)} checked, {found} playable')
 
     for song, artist in candidates:
         preview, source = find_preview(song, artist)
         if preview:
             found += 1
-        rows.append({
+        checked += 1
+        pending.append({
             'song': song,
             'artist': artist,
             'preview_url': preview,
@@ -98,7 +106,13 @@ def resolve_audio(limit=PREVIEW_BATCH):
             'playable': bool(preview),
         })
 
-    library.upsert_songs(rows)
+        # Write as we go. A long run that only saved at the end would bank
+        # nothing if it were interrupted, and the app couldn't use any of it
+        # until the whole library was done.
+        if len(pending) >= COMMIT_EVERY:
+            flush()
+
+    flush()
     logger.info(f'  {found} of {len(candidates)} playable '
                 f'({len(candidates) - found} have no preview anywhere)')
     return found

@@ -74,6 +74,7 @@ MIN_YEAR = 1960            # Songs released before this are left out of the quiz
 MAX_RECENT_SONGS = 50      # Per-player replay memory
 MAX_USERNAME_LENGTH = 32
 LEADERBOARD_SIZE = 10
+MIN_RECORDED_SCORE = 1     # A game with nothing right doesn't go on the board
 PREVIEW_SEARCH_ATTEMPTS = 5
 
 # Genre mapping
@@ -269,6 +270,31 @@ MIN_TOKEN_LENGTH = 5      # short words like "john" are too common to accept alo
 ANSWER_STOPWORDS = {'the', 'and', 'featuring', 'with', 'their', 'band'}
 
 
+# Ways a credit names guests after the lead. Deliberately no " & ", " and " or
+# " x " - those join real acts (Hall & Oates, Lil Nas X, Tony Orlando and Dawn).
+FEATURED_SEPARATORS = (
+    ' featuring ', ' feat. ', ' feat ', ' ft. ', ' ft ', ' f/ ',
+    ' duet with ', ' with ', ' vs. ', ' vs ', ' presents ', ' pres. ',
+)
+
+
+def primary_artist(artist):
+    """The billed lead, without any guests.
+
+    "Chris Brown featuring Usher and Rick Ross" -> "Chris Brown"
+    """
+    name = ' '.join(str(artist).split())
+    padded = ' ' + name.lower() + ' '
+
+    cut = len(name)
+    for separator in FEATURED_SEPARATORS:
+        found = padded.find(separator)
+        if found != -1:
+            cut = min(cut, found)
+
+    return name[:cut].strip() or name
+
+
 def _similar(a, b, threshold):
     return SequenceMatcher(None, a, b).ratio() >= threshold
 
@@ -433,7 +459,15 @@ def index():
 
 
 def record_score(username, final_score):
-    """Save a finished game and report whether it reached the leaderboard."""
+    """Save a finished game and report whether it reached the leaderboard.
+
+    A game where nothing was guessed right isn't a score worth keeping, so it
+    never reaches the board.
+    """
+    if final_score < MIN_RECORDED_SCORE:
+        logger.info(f'Not recording a score of {final_score} for {username}')
+        return False
+
     with get_db() as db:
         cursor = db.cursor()
         cursor.execute(
@@ -468,7 +502,9 @@ def check_answer():
             }), 400
 
         user_answer = clean_text(str(data.get('answer', '')).lower())
-        correct_artist = clean_text(current_song['artist'].lower())
+        # Only the lead has to be named - guests don't count either way.
+        # Must run before clean_text, which strips the word "featuring" itself.
+        correct_artist = clean_text(primary_artist(current_song['artist']).lower())
         correct_song = clean_text(current_song['song'].lower())
 
         is_correct = (answer_matches(user_answer, correct_artist)
