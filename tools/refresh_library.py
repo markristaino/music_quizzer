@@ -21,7 +21,7 @@ from datetime import date, datetime
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import library  # noqa: E402
-from previews import find_preview  # noqa: E402
+from previews import EXPIRING_SOURCES, find_preview  # noqa: E402
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
@@ -93,15 +93,18 @@ def resolve_audio(limit=PREVIEW_BATCH):
             logger.info(f'  {checked}/{len(candidates)} checked, {found} playable')
 
     for song, artist in candidates:
-        preview, source = find_preview(song, artist)
+        preview, source, track_id = find_preview(song, artist)
         if preview:
             found += 1
         checked += 1
         pending.append({
             'song': song,
             'artist': artist,
-            'preview_url': preview,
+            # Deezer links expire within minutes, so only the id is worth
+            # keeping - the app fetches a fresh link when the song comes up.
+            'preview_url': None if source in EXPIRING_SOURCES else preview,
             'preview_source': source,
+            'preview_id': track_id,
             'preview_checked_at': checked_at,
             'playable': bool(preview),
         })

@@ -61,6 +61,7 @@ CREATE TABLE IF NOT EXISTS songs (
     last_charted DATE,
     preview_url TEXT,
     preview_source TEXT,
+    preview_id TEXT,
     preview_checked_at TIMESTAMP,
     playable BOOLEAN,
     UNIQUE (song, artist)
@@ -68,11 +69,32 @@ CREATE TABLE IF NOT EXISTS songs (
 '''
 
 
+# Columns added after the table first shipped, so existing databases get them
+LATER_COLUMNS = {'preview_id': 'TEXT'}
+
+
+def _existing_columns(cursor):
+    if USE_POSTGRES:
+        cursor.execute("SELECT column_name FROM information_schema.columns "
+                       "WHERE table_name = 'songs'")
+        return {row[0] for row in cursor.fetchall()}
+    cursor.execute('PRAGMA table_info(songs)')
+    return {row[1] for row in cursor.fetchall()}
+
+
 def init_songs_table():
     id_column = ('id SERIAL PRIMARY KEY' if USE_POSTGRES
                  else 'id INTEGER PRIMARY KEY AUTOINCREMENT')
     with get_db() as conn:
-        conn.cursor().execute(SONGS_SCHEMA.format(id_column=id_column))
+        cursor = conn.cursor()
+        cursor.execute(SONGS_SCHEMA.format(id_column=id_column))
+
+        present = _existing_columns(cursor)
+        for column, column_type in LATER_COLUMNS.items():
+            if column not in present:
+                cursor.execute(f'ALTER TABLE songs ADD COLUMN {column} {column_type}')
+                logger.info(f'Added missing column songs.{column}')
+
         conn.commit()
 
 
@@ -93,7 +115,7 @@ def decade_for(year):
 
 COLUMNS = ['song', 'artist', 'year', 'decade', 'genres', 'year_end_rank',
            'chart_peak', 'weeks_on_chart', 'last_charted', 'preview_url',
-           'preview_source', 'preview_checked_at', 'playable']
+           'preview_source', 'preview_id', 'preview_checked_at', 'playable']
 
 # A row can only be inserted if it carries everything the schema requires
 REQUIRED = ('song', 'artist', 'year', 'decade')
@@ -157,7 +179,7 @@ def _load_from_csv():
 
 def _load_from_postgres():
     columns = ['song', 'artist', 'year', 'decade', 'genres', 'year_end_rank',
-               'preview_url', 'playable']
+               'preview_url', 'preview_source', 'preview_id', 'playable']
     # A plain cursor rather than pandas.read_sql_query, which only officially
     # supports SQLAlchemy connectables and warns about a raw DBAPI connection
     with get_db() as conn:
@@ -181,6 +203,8 @@ def _load_from_postgres():
         'genres': 'Genres',
         'year_end_rank': 'Rank',
         'preview_url': 'PreviewUrl',
+        'preview_source': 'PreviewSource',
+        'preview_id': 'PreviewId',
     })
 
 

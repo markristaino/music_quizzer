@@ -150,6 +150,41 @@ def test_loaded_columns_match_what_the_app_expects(db):
         assert column in df.columns
 
 
+def test_expiring_preview_urls_are_not_stored(db, monkeypatch):
+    """Deezer links die within minutes; only the track id is worth keeping."""
+    library.upsert_songs([song_row('Fresh', 'A')])
+    monkeypatch.setattr(refresh_library, 'find_preview',
+                        lambda song, artist: ('https://dz/x.mp3', 'deezer', '1234'))
+
+    refresh_library.resolve_audio(limit=10)
+
+    with library.get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(library.sql(
+            'SELECT preview_url, preview_source, preview_id, playable '
+            'FROM songs WHERE song = ?'), ('Fresh',))
+        url, source, track_id, playable = cursor.fetchone()
+
+    assert url is None            # would be stale by the time anyone played it
+    assert source == 'deezer'
+    assert track_id == '1234'
+    assert playable               # still known to be playable
+
+
+def test_durable_preview_urls_are_stored(db, monkeypatch):
+    library.upsert_songs([song_row('Apple', 'B')])
+    monkeypatch.setattr(refresh_library, 'find_preview',
+                        lambda song, artist: ('https://itunes/x.m4a', 'itunes', '55'))
+
+    refresh_library.resolve_audio(limit=10)
+
+    with library.get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(library.sql(
+            'SELECT preview_url FROM songs WHERE song = ?'), ('Apple',))
+        assert cursor.fetchone()[0] == 'https://itunes/x.m4a'
+
+
 # --- The refresh job ---------------------------------------------------------
 
 class FakeEntry:
@@ -200,8 +235,8 @@ def test_audio_step_marks_songs_with_no_preview(db, monkeypatch):
     ])
     monkeypatch.setattr(
         refresh_library, 'find_preview',
-        lambda song, artist: (('https://x/a.mp3', 'deezer')
-                              if song == 'Has Audio' else (None, None)))
+        lambda song, artist: (('https://x/a.mp3', 'itunes', '99')
+                              if song == 'Has Audio' else (None, None, None)))
 
     found = refresh_library.resolve_audio(limit=10)
 
@@ -218,7 +253,7 @@ def test_audio_step_prefers_unchecked_songs(db, monkeypatch):
     asked = []
     monkeypatch.setattr(refresh_library, 'find_preview',
                         lambda song, artist: (asked.append(song),
-                                              ('https://x/b.mp3', 'deezer'))[1])
+                                              ('https://x/b.mp3', 'itunes', '7'))[1])
 
     refresh_library.resolve_audio(limit=1)
     assert asked == ['Unchecked']
@@ -235,7 +270,7 @@ def test_a_failing_step_does_not_stop_the_others(db, monkeypatch, caplog):
     module.ChartData = explode
     monkeypatch.setitem(sys.modules, 'billboard', module)
     monkeypatch.setattr(refresh_library, 'find_preview',
-                        lambda song, artist: ('https://x/a.mp3', 'deezer'))
+                        lambda song, artist: ('https://x/a.mp3', 'itunes', '3'))
     monkeypatch.setattr(sys, 'argv', ['refresh_library', '--genre-batch', '0'])
 
     refresh_library.main()

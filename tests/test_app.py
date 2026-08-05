@@ -585,6 +585,12 @@ def matches(guess, correct):
     ('beatles', 'The Beatles'),                   # without the article
     ('simon and garfunkle', 'Simon & Garfunkel'), # ampersand plus a typo
     ('i think its fleetwood mac', 'Fleetwood Mac'),  # buried in a sentence
+    ('t-payne', 'T-Pain'),                # hyphenated, misspelled
+    ('t pain', 'T-Pain'),                 # hyphen written as a space
+    ('tpain', 'T-Pain'),                  # run together
+    ('T-Pain', 'T-Pain'),
+    ('ac dc', 'AC/DC'),                   # slash written as a space
+    ('will i am', 'will.i.am'),
 ])
 def test_forgiving_answers_are_accepted(guess, correct):
     assert matches(guess, correct)
@@ -596,6 +602,10 @@ def test_forgiving_answers_are_accepted(guess, correct):
     ('the police', 'The Beatles'),
     ('john lennon', 'Elton John'),        # short shared word isn't enough
     ('no idea', 'Fleetwood Mac'),
+    ('t-pain', 'Ti'),                     # collapsing must not swallow short names
+    ('the pogues', 'The Police'),
+    ('drake', 'Blake Shelton'),
+    ('pink', 'Pink Floyd'),               # a real artist in its own right
 ])
 def test_wrong_answers_are_still_wrong(guess, correct):
     assert not matches(guess, correct)

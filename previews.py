@@ -10,13 +10,16 @@ import logging
 import re
 import urllib.parse
 import urllib.request
-from functools import lru_cache
-
 import deezer
 
 logger = logging.getLogger(__name__)
 
 client = deezer.Client()
+
+# Deezer signs its preview URLs with a ~15 minute expiry, so a stored URL is
+# dead almost immediately. For these we keep the track id and fetch a fresh URL
+# at play time. Apple's URLs carry no signature and can be stored as-is.
+EXPIRING_SOURCES = {'deezer'}
 
 ITUNES_SEARCH = 'https://itunes.apple.com/search'
 USER_AGENT = 'music-quizzer/1.0 (https://github.com/markristaino/music_quizzer)'
@@ -61,6 +64,7 @@ def is_match(song_words, artist_words, candidate_song, candidate_artist):
 
 
 def _deezer_preview(clean_song, clean_artist, song_words, artist_words):
+    """Returns (preview_url, track_id)."""
     queries = [
         f'track:"{clean_song}" artist:"{clean_artist}"',  # exact match on both
         f'{clean_song} {clean_artist}',                   # simple combined search
@@ -78,12 +82,13 @@ def _deezer_preview(clean_song, clean_artist, song_words, artist_words):
             if not track.preview:
                 continue
             if is_match(song_words, artist_words, track.title, track.artist.name):
-                return track.preview
+                return track.preview, str(track.id)
 
-    return None
+    return None, None
 
 
 def _itunes_preview(clean_song, clean_artist, song_words, artist_words):
+    """Returns (preview_url, track_id)."""
     query = urllib.parse.urlencode({
         'term': f'{clean_song} {clean_artist}',
         'media': 'music',
@@ -97,7 +102,7 @@ def _itunes_preview(clean_song, clean_artist, song_words, artist_words):
             results = json.load(response).get('results', [])
     except Exception as e:
         logger.debug(f'iTunes search failed for {clean_song}: {e}')
-        return None
+        return None, None
 
     for item in results:
         preview = item.get('previewUrl')
@@ -105,37 +110,55 @@ def _itunes_preview(clean_song, clean_artist, song_words, artist_words):
             continue
         if is_match(song_words, artist_words,
                     item.get('trackName', ''), item.get('artistName', '')):
-            return preview
+            return preview, str(item.get('trackId', ''))
 
-    return None
+    return None, None
 
 
 def find_preview(song, artist):
-    """Return (preview_url, source), or (None, None) if neither provider has one."""
+    """Search both providers for a playable preview.
+
+    Returns (preview_url, source, track_id) - all None if neither has one. The
+    track id matters more than the URL: see EXPIRING_SOURCES below.
+    """
     clean_song = clean_text(song)
     clean_artist = clean_text(artist)
     song_words = set(clean_song.lower().split())
     artist_words = set(clean_artist.lower().split())
 
     if not song_words:
-        return None, None
+        return None, None, None
 
     for source, lookup in (('deezer', _deezer_preview), ('itunes', _itunes_preview)):
         try:
-            preview = lookup(clean_song, clean_artist, song_words, artist_words)
+            preview, track_id = lookup(clean_song, clean_artist,
+                                       song_words, artist_words)
         except Exception as e:
             logger.warning(f'{source} lookup failed for {artist} - {song}: {e}')
             continue
         if preview:
-            return preview, source
+            return preview, source, track_id
 
-    return None, None
+    return None, None, None
 
 
-@lru_cache(maxsize=4096)
 def get_preview_url(song, artist):
-    """Cached preview lookup for request-time use, misses included."""
-    preview, _source = find_preview(song, artist)
+    """Search for a playable preview URL. Not cached - see EXPIRING_SOURCES."""
+    preview, _source, _track_id = find_preview(song, artist)
     if not preview:
         logger.info(f'No preview found for {artist} - {song}')
     return preview
+
+
+def refresh_preview(source, track_id):
+    """A fresh URL for a preview we already identified, by track id.
+
+    One cheap call instead of re-running the whole search.
+    """
+    if source != 'deezer' or not track_id:
+        return None
+    try:
+        return client.get_track(int(track_id)).preview or None
+    except Exception as e:
+        logger.info(f'Could not refresh deezer track {track_id}: {e}')
+        return None

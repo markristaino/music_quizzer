@@ -10,7 +10,8 @@ from difflib import SequenceMatcher
 
 import library
 from library import USE_POSTGRES, get_db, sql
-from previews import clean_text, get_preview_url
+from previews import (EXPIRING_SOURCES, clean_text, get_preview_url,
+                      refresh_preview)
 
 # Configure logging
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
@@ -273,9 +274,12 @@ song_data, all_decades = load_song_data()
 
 # Answer matching. Requiring the exact name as a substring meant one wrong
 # letter failed the round, so guesses are matched three ways, loosest last.
-WHOLE_MATCH_RATIO = 0.8   # "alanis morisett" vs "alanis morissette"
-TOKEN_MATCH_RATIO = 0.8   # a single misspelled word
-MIN_TOKEN_LENGTH = 5      # short words like "john" are too common to accept alone
+WHOLE_MATCH_RATIO = 0.8    # "alanis morisett" vs "alanis morissette"
+TOKEN_MATCH_RATIO = 0.85   # a single misspelled word
+MIN_TOKEN_LENGTH = 5       # short words like "john" are too common to accept alone
+MIN_SKELETON_LENGTH = 3    # below this, consonants alone collide too easily
+
+VOWELS = set('aeiouy')
 
 ANSWER_STOPWORDS = {'the', 'and', 'featuring', 'with', 'their', 'band'}
 
@@ -322,6 +326,15 @@ def hint_for(current_song):
     return 'The artist ' + ' and '.join(parts) + '.'
 
 
+def consonant_skeleton(value):
+    """The consonants of a name, which survive most phonetic misspellings.
+
+    "tpayne" and "tpain" both reduce to "tpn". Character-similarity scores them
+    at 0.67 and reject them; people type artist names by ear all the time.
+    """
+    return ''.join(c for c in value if c.isalnum() and c not in VOWELS)
+
+
 def _similar(a, b, threshold):
     return SequenceMatcher(None, a, b).ratio() >= threshold
 
@@ -339,6 +352,22 @@ def answer_matches(guess, correct):
     if _similar(guess, correct, WHOLE_MATCH_RATIO):
         return True
 
+    # Names vary in how they're spaced and hyphenated - T-Pain, T Pain, tpain -
+    # and cleaning turns punctuation into spaces. Comparing without any spacing
+    # judges the letters rather than the styling.
+    tight_guess = guess.replace(' ', '')
+    tight_correct = correct.replace(' ', '')
+    if len(tight_correct) >= 4 and tight_correct in tight_guess:
+        return True
+    if _similar(tight_guess, tight_correct, WHOLE_MATCH_RATIO):
+        return True
+
+    # Spelled by ear: same consonants, different vowels
+    skeleton = consonant_skeleton(tight_correct)
+    if (len(skeleton) >= MIN_SKELETON_LENGTH
+            and skeleton == consonant_skeleton(tight_guess)):
+        return True
+
     # A distinctive word on its own - surname only, or one word misspelled
     guess_words = guess.split()
     for word in correct.split():
@@ -348,6 +377,29 @@ def answer_matches(guess, correct):
             return True
 
     return False
+
+
+def playable_url(song):
+    """A URL that will still work when the player presses play.
+
+    Deezer signs its preview links with a short expiry, so a stored one is
+    usually dead. For those we keep the track id and fetch a fresh link - one
+    call. Apple's links don't expire, so a stored one is used as-is. Failing
+    both, fall back to a full search.
+    """
+    source = song.get('PreviewSource')
+    track_id = song.get('PreviewId')
+
+    if isinstance(source, str) and isinstance(track_id, str) and track_id:
+        fresh = refresh_preview(source, track_id)
+        if fresh:
+            return fresh
+
+    stored = song.get('PreviewUrl')
+    if source not in EXPIRING_SOURCES and isinstance(stored, str) and stored:
+        return stored
+
+    return get_preview_url(song['Song'], song['Artist'])
 
 
 def remember_song(index):
@@ -397,11 +449,7 @@ def pick_song(selected_genres=None, selected_decades=None):
 
         song = available_songs.sample(n=1).iloc[0]
 
-        # The library stores a preview URL once the refresh job has resolved it.
-        # Searching live is the fallback, not the normal path.
-        preview_url = song.get('PreviewUrl')
-        if not isinstance(preview_url, str) or not preview_url:
-            preview_url = get_preview_url(song['Song'], song['Artist'])
+        preview_url = playable_url(song)
 
         if preview_url:
             remember_song(song.name)
