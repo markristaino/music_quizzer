@@ -1,15 +1,14 @@
 from flask import Flask, render_template, request, jsonify, session
 import pandas as pd
-import deezer
 import random
-import re
 import os
 import html
 import sys
 import logging
-import sqlite3
-from contextlib import contextmanager
-from functools import lru_cache
+
+import library
+from library import USE_POSTGRES, get_db, sql
+from previews import clean_text, get_preview_url
 
 # Configure logging
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
@@ -37,24 +36,9 @@ app.config.update(
     PERMANENT_SESSION_LIFETIME=1800  # 30 minutes
 )
 
-# Initialize Deezer client
-client = deezer.Client()
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_FILE = os.path.join(BASE_DIR, 'updated_spotify_data_new.csv')
-FALLBACK_DATA_FILE = os.path.join(BASE_DIR, 'billboard_lyrics_1964-2015.csv')
-DB_PATH = os.environ.get('SCORES_DB', os.path.join(BASE_DIR, 'scores.db'))
-
-# Hosts like Heroku wipe the local filesystem on every restart, which loses a
-# SQLite leaderboard. Use Postgres whenever DATABASE_URL is set; SQLite locally.
-DATABASE_URL = os.environ.get('DATABASE_URL', '')
-if DATABASE_URL.startswith('postgres://'):
-    # Heroku still hands out the legacy scheme; psycopg2 wants the modern one
-    DATABASE_URL = 'postgresql://' + DATABASE_URL[len('postgres://'):]
-USE_POSTGRES = DATABASE_URL.startswith('postgresql://')
-
-if USE_POSTGRES:
-    import psycopg2
+# Where the library and the leaderboard live is decided in library.py, which
+# picks Postgres when DATABASE_URL is set and SQLite otherwise.
+DB_PATH = library.SQLITE_PATH
 
 MAX_SONGS = 6              # Songs per game
 MIN_YEAR = 1960            # Songs released before this are left out of the quiz
@@ -191,48 +175,18 @@ INCORRECT_RESPONSES = [
 ]
 
 
-def clean_text(text):
-    """Clean up text by removing special characters and normalizing spaces."""
-    # Convert contractions to full words
-    text = text.replace("don't", "dont")
-    text = text.replace("couldn't", "couldnt")
-    text = text.replace("won't", "wont")
-    text = text.replace("can't", "cant")
-    text = text.replace("ain't", "aint")
-    text = text.replace("'bout", "bout")
-    text = text.replace("'n'", "and")
-    text = text.replace("'", "")  # Remove remaining apostrophes
-
-    # Remove text in parentheses and brackets
-    text = re.sub(r'\([^)]*\)', '', text)
-    text = re.sub(r'\[[^\]]*\]', '', text)
-
-    # Remove featuring, feat., ft., etc.
-    text = re.sub(r'feat\.?|ft\.?|featuring', '', text, flags=re.IGNORECASE)
-
-    # Remove special characters but preserve letters and numbers
-    text = re.sub(r'[^\w\s]', ' ', text)
-
-    # Normalize whitespace
-    text = ' '.join(text.split())
-    return text.strip()
-
-
 def load_song_data():
-    """Load the song dataset from disk once, at startup.
+    """Load the song library once, at startup.
 
     Returns (dataframe, decades). Dataframe is None if nothing could be loaded.
     """
-    df = None
-    for path, encoding in ((DATA_FILE, 'utf-8'), (FALLBACK_DATA_FILE, 'latin1')):
-        try:
-            df = pd.read_csv(path, encoding=encoding)
-            logger.info(f"Loaded {len(df)} songs from {os.path.basename(path)}")
-            break
-        except Exception as e:
-            logger.error(f"Could not load {path}: {e}")
+    try:
+        df = library.load_songs()
+    except Exception as e:
+        logger.error(f"Could not load the song library: {e}")
+        df = None
 
-    if df is None:
+    if df is None or df.empty:
         logger.error("No song data available")
         return None, []
 
@@ -275,51 +229,6 @@ def load_song_data():
 
 
 song_data, all_decades = load_song_data()
-
-
-@lru_cache(maxsize=4096)
-def get_preview_url(song, artist):
-    """Search Deezer for a song and return the preview URL (cached, including misses)."""
-    try:
-        clean_song = clean_text(song)
-        clean_artist = clean_text(artist)
-
-        search_strategies = [
-            f'track:"{clean_song}" artist:"{clean_artist}"',   # exact match on both
-            f'{clean_song} {clean_artist}',                    # simple combined search
-            clean_song,                                        # title only
-        ]
-
-        song_words = set(clean_song.lower().split())
-        artist_words = set(clean_artist.lower().split())
-
-        for query in search_strategies:
-            try:
-                results = client.search(query)
-            except Exception as e:
-                logger.error(f"Deezer search failed for '{query}': {e}")
-                continue
-
-            if not results:
-                continue
-
-            for track in results:
-                if not track.preview:
-                    continue
-
-                track_words = set(clean_text(track.title.lower()).split())
-                track_artist_words = set(clean_text(track.artist.name.lower()).split())
-
-                name_match = len(song_words & track_words) >= min(2, len(song_words))
-                artist_match = bool(artist_words & track_artist_words)
-
-                if name_match and artist_match:
-                    return track.preview
-    except Exception as e:
-        logger.error(f"Error in get_preview_url: {e}")
-
-    logger.info(f"No preview found for {artist} - {song}")
-    return None
 
 
 def remember_song(index):
@@ -368,7 +277,12 @@ def pick_song(selected_genres=None, selected_decades=None):
             available_songs = filtered_songs
 
         song = available_songs.sample(n=1).iloc[0]
-        preview_url = get_preview_url(song['Song'], song['Artist'])
+
+        # The library stores a preview URL once the refresh job has resolved it.
+        # Searching live is the fallback, not the normal path.
+        preview_url = song.get('PreviewUrl')
+        if not isinstance(preview_url, str) or not preview_url:
+            preview_url = get_preview_url(song['Song'], song['Artist'])
 
         if preview_url:
             remember_song(song.name)
@@ -412,21 +326,8 @@ def new_song():
         return jsonify({'error': 'Could not load a song. Please try again.'}), 500
 
 
-# Database setup
-def sql(query):
-    """Queries are written with SQLite '?' placeholders; Postgres wants '%s'."""
-    return query.replace('?', '%s') if USE_POSTGRES else query
-
-
-@contextmanager
-def get_db():
-    conn = psycopg2.connect(DATABASE_URL) if USE_POSTGRES else sqlite3.connect(DB_PATH)
-    try:
-        yield conn
-    finally:
-        conn.close()
-
-
+# Leaderboard storage. `get_db` and `sql` come from library.py so both tables
+# share one connection story.
 def init_db():
     id_column = ('id SERIAL PRIMARY KEY' if USE_POSTGRES
                  else 'id INTEGER PRIMARY KEY AUTOINCREMENT')
