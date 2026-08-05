@@ -104,6 +104,7 @@ def test_little_stevie_wonder_is_renamed():
     ('Hall & Oates', 'Hall & Oates'),
     ('Prince and The Revolution', 'Prince'),
     ('Prince & the Revolution', 'Prince'),
+    ('Prince and The New Power Generation', 'Prince'),
     ('Prince', 'Prince'),
 ])
 def test_backing_bands_fold_into_the_lead(credit, expected):
@@ -113,7 +114,6 @@ def test_backing_bands_fold_into_the_lead(credit, expected):
 @pytest.mark.parametrize('credit', [
     'DJ Jazzy Jeff & The Fresh Prince',
     'Baby Boy da Prince',
-    'Prince and The New Power Generation',
     'Paul Anka & Odia Coates',
 ])
 def test_similar_names_are_not_folded(credit):

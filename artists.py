@@ -32,6 +32,8 @@ ARTIST_ALIASES = {
     'hall and oates': 'Hall & Oates',
     'prince and the revolution': 'Prince',
     'prince & the revolution': 'Prince',
+    'prince and the new power generation': 'Prince',
+    'prince & the new power generation': 'Prince',
 }
 
 
