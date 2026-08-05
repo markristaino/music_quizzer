@@ -102,6 +102,7 @@ FEMALE_VOCAL_ARTISTS = {
     'tate mcrae',
     'doechii',
     'lainey wilson',
+    'karol g',
 }
 
 # Tags that mark a female vocal. Matched whole, never as substrings - "female"
