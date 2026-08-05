@@ -16,6 +16,7 @@ EXCLUDED_ARTISTS = {
     'simon & garfunkel': None,
     'the doors': None,
     'michael jackson': None,
+    'u2': None,
     'pink floyd': (1973, None),   # from Dark Side of the Moon on
     'bob dylan': (None, 1969),    # everything before 1969
 }
@@ -26,6 +27,11 @@ EXCLUDED_ARTISTS = {
 # left alone.
 ARTIST_ALIASES = {
     'little stevie wonder': 'Stevie Wonder',
+    'daryl hall & john oates': 'Hall & Oates',
+    'daryl hall and john oates': 'Hall & Oates',
+    'hall and oates': 'Hall & Oates',
+    'prince and the revolution': 'Prince',
+    'prince & the revolution': 'Prince',
 }
 
 

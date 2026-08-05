@@ -79,6 +79,21 @@ LEADERBOARD_SIZE = 10
 MIN_RECORDED_SCORE = 1     # A game with nothing right doesn't go on the board
 PREVIEW_SEARCH_ATTEMPTS = 5
 
+# How often a song comes up. Two independent pulls, multiplied together:
+#   RECENCY_WEIGHT      what the newest year weighs against the oldest
+#   FEMALE_VOCAL_WEIGHT what a female-fronted song weighs against the rest
+# Set either to 1.0 to switch that pull off.
+RECENCY_WEIGHT = 3.0
+FEMALE_VOCAL_WEIGHT = 2.0
+
+# Last.fm tags that mark a female vocal. Matched whole, never as substrings -
+# "female" contains "male", and that way round the test would invert.
+FEMALE_VOCAL_TAGS = {
+    'female vocalists', 'female vocalist', 'female', 'female rap',
+    'female fronted', 'girl group', 'girl groups', 'classic girl group',
+    'country women', 'women in rock',
+}
+
 # Genre mapping
 GENRE_MAPPING = {
     'rock': ['rock', 'alternative rock', 'classic rock', 'hard rock', 'indie rock', 'progressive rock',
@@ -216,6 +231,40 @@ INCORRECT_RESPONSES = [
 ]
 
 
+def has_female_vocal(genres):
+    """Do this artist's tags mark a female vocal?"""
+    if not isinstance(genres, str):
+        return False
+    return any(tag.strip().lower() in FEMALE_VOCAL_TAGS for tag in genres.split(','))
+
+
+def recency_weight(year, oldest, newest):
+    """Newer songs come up more often, rising evenly across the years."""
+    if newest <= oldest:
+        return 1.0
+    try:
+        position = (int(year) - oldest) / (newest - oldest)
+    except (TypeError, ValueError):
+        return 1.0
+    position = min(max(position, 0.0), 1.0)
+    return 1.0 + (RECENCY_WEIGHT - 1.0) * position
+
+
+def song_weights(df):
+    """A pick-likelihood for every song, from recency and vocal tags."""
+    years = pd.to_numeric(df['Year'], errors='coerce')
+    oldest, newest = int(years.min()), int(years.max())
+
+    weights = years.apply(lambda y: recency_weight(y, oldest, newest))
+
+    if 'Genres' in df.columns:
+        female = df['Genres'].apply(has_female_vocal)
+        weights = weights * female.map({True: FEMALE_VOCAL_WEIGHT, False: 1.0})
+        logger.info(f'{int(female.sum())} songs tagged as female-fronted')
+
+    return weights
+
+
 def load_song_data():
     """Load the song library once, at startup.
 
@@ -247,6 +296,7 @@ def load_song_data():
         logger.info("Created Decade column from Year")
 
     df = df[df['Decade'].notna()].copy()
+    df['Weight'] = song_weights(df)
 
     # Precompute parent genres per row so filtering does not re-parse on every request
     if 'Genres' in df.columns:
@@ -453,7 +503,8 @@ def pick_song(selected_genres=None, selected_decades=None):
             recent = set()
             available_songs = filtered_songs
 
-        song = available_songs.sample(n=1).iloc[0]
+        # Weighted, so newer and female-fronted songs come up more often
+        song = available_songs.sample(n=1, weights=available_songs['Weight']).iloc[0]
 
         preview_url = playable_url(song)
 

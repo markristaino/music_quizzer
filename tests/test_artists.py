@@ -20,6 +20,7 @@ from artists import canonical_artist, is_excluded  # noqa: E402
     ('The Doors', 1967),
     ('Michael Jackson', 1983),
     ('Michael Jackson featuring Siedah Garrett', 1987),
+    ('U2', 1987),
 ])
 def test_fully_excluded_artists(artist, year):
     assert is_excluded(artist, year)
@@ -95,6 +96,28 @@ def test_library_load_drops_them():
 def test_little_stevie_wonder_is_renamed():
     assert canonical_artist('Little Stevie Wonder') == 'Stevie Wonder'
     assert canonical_artist('little stevie wonder') == 'Stevie Wonder'
+
+
+@pytest.mark.parametrize('credit, expected', [
+    ('Daryl Hall & John Oates', 'Hall & Oates'),
+    ('Daryl Hall and John Oates', 'Hall & Oates'),
+    ('Hall & Oates', 'Hall & Oates'),
+    ('Prince and The Revolution', 'Prince'),
+    ('Prince & the Revolution', 'Prince'),
+    ('Prince', 'Prince'),
+])
+def test_backing_bands_fold_into_the_lead(credit, expected):
+    assert canonical_artist(credit) == expected
+
+
+@pytest.mark.parametrize('credit', [
+    'DJ Jazzy Jeff & The Fresh Prince',
+    'Baby Boy da Prince',
+    'Prince and The New Power Generation',
+    'Paul Anka & Odia Coates',
+])
+def test_similar_names_are_not_folded(credit):
+    assert canonical_artist(credit) == credit
 
 
 def test_joint_credits_are_left_alone():
