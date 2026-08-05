@@ -70,6 +70,7 @@ app.config.update(
 DB_PATH = library.SQLITE_PATH
 
 MAX_SONGS = 6              # Songs per game
+MAX_GUESSES = 2            # Tries per song; the second one comes with a hint
 MIN_YEAR = 1960            # Songs released before this are left out of the quiz
 MAX_RECENT_SONGS = 50      # Per-player replay memory
 MAX_USERNAME_LENGTH = 32
@@ -191,6 +192,15 @@ CORRECT_RESPONSES = [
     "Spot on! You’ve got the precision of a perfectly tuned guitar string! "
 ]
 
+RETRY_RESPONSES = [
+    "Not even close. One more shot. ",
+    "Nope. You get one more swing at it. ",
+    "Wrong, but the encore's not over. One more. ",
+    "Miss. Take another run at it. ",
+    "That's a no. Last chance on this one. ",
+    "Swing and a miss. One more. ",
+]
+
 INCORRECT_RESPONSES = [
     "Wrong! That answer was flatter than a deflated stage prop. ",
     "Oops! That guess missed the mark like a bad guitar solo at an encore. ",
@@ -295,6 +305,23 @@ def primary_artist(artist):
     return name[:cut].strip() or name
 
 
+def hint_for(current_song):
+    """The nudge that comes with the second guess: an initial and a year."""
+    lead = primary_artist(current_song.get('artist', ''))
+    initial = lead[:1].upper()
+    year = str(current_song.get('year', '')).strip()
+
+    parts = []
+    if initial:
+        parts.append(f'starts with <strong>{html.escape(initial)}</strong>')
+    if year and year.lower() not in ('none', 'nan'):
+        parts.append(f'charted in <strong>{html.escape(year)}</strong>')
+
+    if not parts:
+        return ''
+    return 'The artist ' + ' and '.join(parts) + '.'
+
+
 def _similar(a, b, threshold):
     return SequenceMatcher(None, a, b).ratio() >= threshold
 
@@ -382,7 +409,9 @@ def pick_song(selected_genres=None, selected_decades=None):
             session['current_song'] = {
                 'artist': str(song['Artist']),
                 'song': str(song['Song']),
+                'year': str(song['Year']),
             }
+            session['attempts'] = 0
             return {'preview_url': preview_url}, 200
 
         recent.add(song.name)
@@ -525,8 +554,25 @@ def check_answer():
         is_correct = (answer_matches(user_answer, correct_artist)
                       or answer_matches(user_answer, correct_song))
 
+        attempts = session.get('attempts', 0) + 1
+        session['attempts'] = attempts
+
+        # A first wrong guess buys another try, with a nudge. The round stays
+        # open: nothing is scored and the song isn't consumed yet.
+        if not is_correct and attempts < MAX_GUESSES:
+            return jsonify({
+                'correct': False,
+                'retry': True,
+                'guesses_left': MAX_GUESSES - attempts,
+                'message': random.choice(RETRY_RESPONSES) + hint_for(current_song),
+                'score': session.get('score', 0),
+                'total': session.get('total', 0),
+                'game_over': False,
+            })
+
         # Consume the song so the same round cannot be scored twice
         session.pop('current_song', None)
+        session.pop('attempts', None)
 
         session['score'] = session.get('score', 0) + (1 if is_correct else 0)
         session['total'] = session.get('total', 0) + 1

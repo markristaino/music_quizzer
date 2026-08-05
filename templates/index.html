@@ -782,6 +782,20 @@
 
                 if (data.error) { throw new Error(data.error); }
 
+                // A first wrong guess keeps the round open: show the hint, let
+                // the clip keep playing, and take another answer.
+                if (data.retry) {
+                    feedback.innerHTML = data.message || '';
+                    feedback.dataset.correct = 'false';
+                    feedback.hidden = false;
+
+                    answerInput.disabled = false;
+                    answerInput.value = '';
+                    submitButton.disabled = false;
+                    answerInput.focus();
+                    return;
+                }
+
                 stopAudio();
 
                 results[round] = data.correct ? 'hit' : 'miss';

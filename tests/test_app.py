@@ -40,6 +40,14 @@ def start_game(client, username='player'):
     return client.post('/set_username', json={'username': username})
 
 
+def miss(client):
+    """Use up every guess on a song, resolving the round as a loss."""
+    result = None
+    for _ in range(quiz.MAX_GUESSES):
+        result = client.post('/check-answer', json={'answer': NO_MATCH}).get_json()
+    return result
+
+
 def current_answer(client):
     """Read the song the server is holding for this session."""
     with client.session_transaction() as session:
@@ -150,6 +158,112 @@ def test_empty_answer_is_not_correct(client):
     assert result['correct'] is False
 
 
+# --- Two guesses per song ----------------------------------------------------
+
+def test_first_wrong_guess_offers_another_try(client):
+    start_game(client)
+    client.get('/new-song')
+
+    result = client.post('/check-answer', json={'answer': NO_MATCH}).get_json()
+
+    assert result['correct'] is False
+    assert result['retry'] is True
+    assert result['guesses_left'] == quiz.MAX_GUESSES - 1
+    # The round hasn't resolved, so nothing is counted yet
+    assert result['total'] == 0
+    assert result['score'] == 0
+
+
+def test_the_retry_hint_gives_an_initial_and_a_year(client):
+    start_game(client)
+    client.get('/new-song')
+
+    with client.session_transaction() as session:
+        session['current_song'] = {
+            'artist': 'Fleetwood Mac', 'song': 'Dreams', 'year': '1977'}
+
+    message = client.post('/check-answer', json={'answer': NO_MATCH}).get_json()['message']
+
+    assert '<strong>F</strong>' in message
+    assert '<strong>1977</strong>' in message
+    # It's a hint, not the answer
+    assert 'Fleetwood' not in message
+
+
+def test_the_hint_uses_the_lead_not_a_guest(client):
+    start_game(client)
+    client.get('/new-song')
+
+    with client.session_transaction() as session:
+        session['current_song'] = {
+            'artist': 'Mark Ronson featuring Bruno Mars',
+            'song': 'Uptown Funk', 'year': '2015'}
+
+    message = client.post('/check-answer', json={'answer': NO_MATCH}).get_json()['message']
+
+    assert '<strong>M</strong>' in message
+
+
+def test_a_right_second_guess_scores(client):
+    start_game(client)
+    client.get('/new-song')
+    answer = current_answer(client)
+
+    client.post('/check-answer', json={'answer': NO_MATCH})
+    result = client.post('/check-answer', json={'answer': answer['artist']}).get_json()
+
+    assert result['correct'] is True
+    assert result.get('retry') is not True
+    assert result['score'] == 1
+    assert result['total'] == 1
+
+
+def test_a_right_first_guess_skips_the_retry(client):
+    start_game(client)
+    client.get('/new-song')
+    answer = current_answer(client)
+
+    result = client.post('/check-answer', json={'answer': answer['artist']}).get_json()
+
+    assert result['correct'] is True
+    assert result.get('retry') is not True
+    assert result['total'] == 1
+
+
+def test_the_second_wrong_guess_reveals_the_answer(client):
+    start_game(client)
+    client.get('/new-song')
+    answer = current_answer(client)
+
+    result = miss(client)
+
+    assert result.get('retry') is not True
+    assert result['total'] == 1
+    assert answer['artist'] in result['message']
+
+
+def test_a_third_guess_is_refused(client):
+    start_game(client)
+    client.get('/new-song')
+
+    miss(client)
+    third = client.post('/check-answer', json={'answer': NO_MATCH})
+
+    assert third.status_code == 400
+
+
+def test_attempts_reset_between_songs(client):
+    start_game(client)
+
+    client.get('/new-song')
+    client.post('/check-answer', json={'answer': NO_MATCH})   # uses one guess
+
+    client.get('/new-song')
+    result = client.post('/check-answer', json={'answer': NO_MATCH}).get_json()
+
+    assert result['retry'] is True   # a fresh song starts over at two
+
+
 # --- Game flow ---------------------------------------------------------------
 
 def test_game_ends_after_max_songs(client):
@@ -157,7 +271,7 @@ def test_game_ends_after_max_songs(client):
 
     for round_number in range(1, quiz.MAX_SONGS + 1):
         client.get('/new-song')
-        result = client.post('/check-answer', json={'answer': NO_MATCH}).get_json()
+        result = miss(client)
         assert result['total'] == round_number
         assert result['game_over'] is (round_number == quiz.MAX_SONGS)
 
@@ -184,7 +298,7 @@ def test_a_score_of_zero_is_not_recorded(client):
 
     for _ in range(quiz.MAX_SONGS):
         client.get('/new-song')
-        result = client.post('/check-answer', json={'answer': NO_MATCH}).get_json()
+        result = miss(client)
 
     assert result['score'] == 0
     assert result['made_leaderboard'] is False
@@ -197,8 +311,11 @@ def test_one_right_still_counts(client):
     for round_number in range(quiz.MAX_SONGS):
         client.get('/new-song')
         answer = current_answer(client)
-        guess = answer['artist'] if round_number == 0 else NO_MATCH
-        result = client.post('/check-answer', json={'answer': guess}).get_json()
+        if round_number == 0:
+            result = client.post('/check-answer',
+                                 json={'answer': answer['artist']}).get_json()
+        else:
+            result = miss(client)
 
     assert result['score'] == 1
     board = client.get('/leaderboard').get_json()
@@ -212,8 +329,10 @@ def play_game(client, username, correct_rounds):
     for index in range(quiz.MAX_SONGS):
         client.get('/new-song')
         answer = current_answer(client)
-        guess = answer['artist'] if index < correct_rounds else NO_MATCH
-        client.post('/check-answer', json={'answer': guess})
+        if index < correct_rounds:
+            client.post('/check-answer', json={'answer': answer['artist']})
+        else:
+            miss(client)
 
 
 # --- All-time standings ------------------------------------------------------
@@ -271,7 +390,7 @@ def test_username_stays_after_game_over(client):
 
     for _ in range(quiz.MAX_SONGS):
         client.get('/new-song')
-        client.post('/check-answer', json={'answer': NO_MATCH})
+        miss(client)
 
     assert client.get('/check-session').get_json() == {
         'has_session': True, 'username': 'persistent'
@@ -299,7 +418,7 @@ def test_wrong_answer_message_escapes_song_data(client, monkeypatch):
     with client.session_transaction() as session:
         session['current_song'] = {'artist': '<script>x</script>', 'song': 'Test'}
 
-    message = client.post('/check-answer', json={'answer': NO_MATCH}).get_json()['message']
+    message = miss(client)['message']
 
     assert '<script>' not in message
     assert '&lt;script&gt;' in message
