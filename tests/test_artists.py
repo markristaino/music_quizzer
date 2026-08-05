@@ -16,6 +16,10 @@ from artists import canonical_artist, is_excluded  # noqa: E402
     ('The Police', 1983),
     ('Elvis Presley', 1957),
     ('Elvis Presley', 1970),
+    ('Simon & Garfunkel', 1970),
+    ('The Doors', 1967),
+    ('Michael Jackson', 1983),
+    ('Michael Jackson featuring Siedah Garrett', 1987),
 ])
 def test_fully_excluded_artists(artist, year):
     assert is_excluded(artist, year)
@@ -42,8 +46,24 @@ def test_year_gated_artist_with_no_year_is_held_out():
     assert is_excluded('Pink Floyd', 'unknown')
 
 
+@pytest.mark.parametrize('year, excluded', [
+    (1965, True),    # Like a Rolling Stone
+    (1966, True),    # Rainy Day Women
+    (1968, True),
+    (1969, False),   # Lay Lady Lay
+    (1975, False),
+])
+def test_bob_dylan_is_gated_to_before_1969(year, excluded):
+    assert is_excluded('Bob Dylan', year) is excluded
+
+
 @pytest.mark.parametrize('artist', [
     'The Rolling Stones',
+    '3 Doors Down',          # not a prefix match on "the doors"
+    'Paul Simon',            # solo work is fair game
+    'Art Garfunkel',
+    'The Jackson 5',         # only Michael solo was asked for
+    'Janet Jackson',
     'Beach House',
     'Police Academy Band',   # not a prefix match on "the police"
     'Sting',

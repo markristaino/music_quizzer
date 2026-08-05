@@ -4,13 +4,20 @@ Both are applied when the library is loaded, not when it's built, so rebuilding
 from the charts can't quietly undo them. Edit and restart.
 """
 
-# Artist -> the year the exclusion starts, or None for everything they did.
+# Artist -> which of their songs to leave out:
+#   None            everything they did
+#   (from, until)   a year range, `from` inclusive and `until` exclusive;
+#                   either end may be None for open-ended
 EXCLUDED_ARTISTS = {
-    'elvis presley': None,
     'the beach boys': None,
     'the beatles': None,
     'the police': None,
-    'pink floyd': 1973,   # from Dark Side of the Moon on
+    'elvis presley': None,
+    'simon & garfunkel': None,
+    'the doors': None,
+    'michael jackson': None,
+    'pink floyd': (1973, None),   # from Dark Side of the Moon on
+    'bob dylan': (None, 1969),    # everything before 1969
 }
 
 
@@ -35,19 +42,23 @@ def is_excluded(artist, year=None):
     """Should this song be kept out of the quiz?"""
     name = normalise_artist(artist)
 
-    for excluded, from_year in EXCLUDED_ARTISTS.items():
+    for excluded, span in EXCLUDED_ARTISTS.items():
         # Prefix match so joint credits go too ("The Beatles with Billy Preston")
         if name != excluded and not name.startswith(excluded + ' '):
             continue
 
-        if from_year is None:
+        if span is None:
             return True
 
         try:
-            return int(year) >= from_year
+            released = int(year)
         except (TypeError, ValueError):
-            # No usable year on a year-gated rule - leave it out rather than
-            # risk serving the thing we were asked to remove
+            # No usable year on a ranged rule - leave it out rather than risk
+            # serving the thing we were asked to remove
             return True
+
+        start, until = span
+        return ((start is None or released >= start)
+                and (until is None or released < until))
 
     return False
