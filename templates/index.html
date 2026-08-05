@@ -3,524 +3,874 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Name That Artist! 🎵 - Music Quiz Game</title>
-    
-    <!-- Open Graph Meta Tags -->
-    <meta property="og:title" content="Name That Artist! 🎵 - Music Quiz Game">
-    <meta property="og:description" content="Test your music knowledge! Listen to song previews and guess the artist in this fun music quiz game.">
-    <meta property="og:image" content="https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=1200&h=630&fit=crop">
-    <meta property="og:url" content="https://music-listener-9de283b930d7.herokuapp.com/">
+    <title>Name That Artist</title>
+
+    <meta property="og:title" content="Name That Artist">
+    <meta property="og:description" content="Six clips. Six chances. Name who's singing.">
     <meta property="og:type" content="website">
-    
-    <!-- Twitter Card Meta Tags -->
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Name That Artist! 🎵 - Music Quiz Game">
-    <meta name="twitter:description" content="Test your music knowledge! Listen to song previews and guess the artist in this fun music quiz game.">
-    <meta name="twitter:image" content="https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=1200&h=630&fit=crop">
-    
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+
     <style>
+        :root {
+            --ink: #160F1B;
+            --lift: #221830;
+            --line: #33253F;
+            --bone: #F2EBE1;
+            --muted: #8B7F9A;
+            --amber: #FFB627;
+            --magenta: #E0197B;
+
+            --display: 'Bricolage Grotesque', Georgia, serif;
+            --body: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+
+            --gutter: clamp(1.25rem, 5vw, 2.5rem);
+        }
+
+        *, *::before, *::after { box-sizing: border-box; }
+
         body {
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            margin: 0;
+            background: var(--ink);
+            color: var(--bone);
+            font-family: var(--body);
+            font-size: 16px;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
             min-height: 100vh;
             display: flex;
-            align-items: center;
-        }
-        .quiz-container {
-            background: rgba(255, 255, 255, 0.9);
-            border-radius: 15px;
-            padding: 2rem;
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
-        }
-        .score {
-            font-size: 1.5rem;
-            color: #2a5298;
-        }
-        .btn-play {
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
-            background: #2a5298;
-            color: white;
-            font-size: 1.5rem;
-        }
-        .btn-play:hover {
-            background: #1e3c72;
-            color: white;
-        }
-        #answer-input {
-            border: 2px solid #2a5298;
-            border-radius: 10px;
-            padding: 0.75rem;
-        }
-        .feedback {
-            font-size: 1.2rem;
-            margin-top: 1rem;
-            padding: 1rem;
-            border-radius: 8px;
-            display: none;
-        }
-        .feedback.correct {
-            background-color: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        .feedback.incorrect {
-            background-color: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c2c7;
-        }
-        #error-message {
-            color: #842029;
-            background-color: #f8d7da;
-            border: 1px solid #f5c2c7;
-            border-radius: 8px;
-            padding: 1rem;
-            margin: 1rem 0;
-            display: none;
-            text-align: center;
-            font-size: 1.1em;
-            font-weight: 500;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        #error-message.show {
-            display: block !important;
-        }
-        #leaderboard {
-            margin-top: 2rem;
-            padding-top: 2rem;
-            border-top: 1px solid #dee2e6;
-        }
-        .list-group-item {
-            background: rgba(255, 255, 255, 0.8);
-        }
-        /* Select2 Styles */
-        .select2-container {
-            width: 100% !important;
-        }
-        .select2-container .select2-selection--multiple {
-            min-height: 38px;
-            border: 1px solid #ced4da;
-            border-radius: 0.25rem;
-        }
-        .select2-container--default .select2-selection--multiple .select2-selection__choice {
-            background-color: #2a5298;
-            border: none;
-            color: white;
-            padding: 3px 8px;
-            margin: 3px;
-            border-radius: 3px;
-        }
-        .select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
-            color: white;
-            margin-right: 5px;
-        }
-        .select2-container--default .select2-selection--multiple .select2-selection__choice__remove:hover {
-            color: #ff9999;
-        }
-        .select2-dropdown {
-            border: 1px solid #ced4da;
-        }
-        .select2-container--default .select2-results__option--highlighted[aria-selected] {
-            background-color: #2a5298;
-        }
-        .button-container {
-            display: flex;
             justify-content: center;
-            align-items: center;
-            width: 100%;
+            /* A slow wash of light from above, like a stage wash */
+            background-image:
+                radial-gradient(120% 60% at 50% -10%, #2C1B3A 0%, transparent 60%);
+            background-repeat: no-repeat;
         }
-        .button-container button {
-            min-width: 150px;  /* Set a minimum width for consistent button size */
+
+        .shell {
+            width: 100%;
+            max-width: 42rem;
+            padding: var(--gutter) var(--gutter) 4rem;
+        }
+
+        /* ---------- Masthead ---------- */
+
+        .masthead {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 1rem;
+            padding-bottom: 0.875rem;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .wordmark {
+            font-family: var(--body);
+            font-weight: 700;
+            font-size: 0.75rem;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+        }
+
+        .standing {
+            font-size: 0.75rem;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--muted);
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* ---------- Round slots ----------
+           Six marks, one per song. They record which rounds you took, which a
+           running total can't. */
+
+        .slots {
+            display: flex;
+            gap: 0.4rem;
+            margin: 1.25rem 0 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .slot {
+            flex: 1;
+            height: 3px;
+            background: var(--line);
+            border-radius: 2px;
+            transition: background-color 240ms ease, box-shadow 240ms ease;
+        }
+
+        .slot[data-state="hit"] {
+            background: var(--amber);
+            box-shadow: 0 0 12px rgba(255, 182, 39, 0.45);
+        }
+
+        .slot[data-state="miss"] { background: var(--magenta); opacity: 0.55; }
+
+        /* ---------- Opening ---------- */
+
+        .display {
+            font-family: var(--display);
+            font-weight: 800;
+            font-size: clamp(2.75rem, 11vw, 4.5rem);
+            line-height: 0.92;
+            letter-spacing: -0.03em;
+            margin: 2.5rem 0 2rem;
+            text-wrap: balance;
+        }
+
+        .display em {
+            font-style: normal;
+            display: block;
+            color: var(--amber);
+        }
+
+        .lede {
+            color: var(--muted);
+            max-width: 30ch;
+            margin: 0 0 2rem;
+        }
+
+        /* ---------- Controls ---------- */
+
+        .field { display: flex; flex-direction: column; gap: 0.75rem; }
+
+        @media (min-width: 30rem) {
+            .field { flex-direction: row; }
+            .field .text-input { flex: 1; }
+        }
+
+        .text-input {
+            font: inherit;
+            font-size: 1.0625rem;
+            color: var(--bone);
+            background: var(--lift);
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 0.9rem 1rem;
+            width: 100%;
+            transition: border-color 160ms ease;
+        }
+
+        .text-input::placeholder { color: var(--muted); }
+        .text-input:focus { outline: none; border-color: var(--amber); }
+        .text-input:disabled { opacity: 0.45; }
+
+        .btn {
+            font: inherit;
+            font-weight: 700;
+            font-size: 0.9375rem;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--ink);
+            background: var(--amber);
+            border: 0;
+            border-radius: 10px;
+            padding: 0.9rem 1.75rem;
+            cursor: pointer;
+            transition: transform 120ms ease, filter 160ms ease;
+        }
+
+        .btn:hover { filter: brightness(1.08); }
+        .btn:active { transform: translateY(1px); }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .btn-quiet {
+            background: transparent;
+            color: var(--bone);
+            border: 1px solid var(--line);
+        }
+
+        .btn-quiet:hover { border-color: var(--bone); filter: none; }
+
+        :focus-visible {
+            outline: 2px solid var(--amber);
+            outline-offset: 3px;
+        }
+
+        /* ---------- The stage: equalizer + play control ---------- */
+
+        .stage {
+            position: relative;
+            height: 13rem;
+            margin: 1.75rem 0 1.5rem;
+            display: grid;
+            place-items: center;
+        }
+
+        #eq {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .play {
+            position: relative;
+            width: 5.5rem;
+            height: 5.5rem;
+            border-radius: 50%;
+            border: 0;
+            background: var(--amber);
+            color: var(--ink);
+            display: grid;
+            place-items: center;
+            cursor: pointer;
+            transition: transform 140ms cubic-bezier(.2,.8,.3,1), opacity 160ms ease;
+            box-shadow: 0 0 0 10px rgba(22, 15, 27, 0.72);
+        }
+
+        .play:hover { transform: scale(1.05); }
+        .play:active { transform: scale(0.97); }
+        .play[hidden] { display: none; }
+        .play svg { width: 1.75rem; height: 1.75rem; display: block; }
+        .play .pause-icon { display: none; }
+        .play[data-playing="true"] .play-icon { display: none; }
+        .play[data-playing="true"] .pause-icon { display: block; }
+
+        .stage-hint {
+            position: absolute;
+            bottom: 0;
+            font-size: 0.75rem;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        /* ---------- Messages ---------- */
+
+        .feedback {
+            margin-top: 1.5rem;
+            padding: 1.125rem 1.25rem;
+            border-radius: 12px;
+            border-left: 3px solid var(--amber);
+            background: var(--lift);
+            font-size: 1.0625rem;
+        }
+
+        .feedback[hidden] { display: none; }
+        .feedback[data-correct="false"] { border-left-color: var(--magenta); }
+        .feedback strong { color: var(--amber); }
+
+        .notice {
+            margin-top: 1rem;
+            padding: 0.875rem 1rem;
+            border-radius: 10px;
+            background: rgba(224, 25, 123, 0.14);
+            border: 1px solid rgba(224, 25, 123, 0.4);
+            font-size: 0.9375rem;
+        }
+
+        .notice[hidden] { display: none; }
+
+        /* ---------- Final card ---------- */
+
+        .final { text-align: left; }
+
+        .final-score {
+            font-family: var(--display);
+            font-weight: 800;
+            font-size: clamp(4rem, 22vw, 7.5rem);
+            line-height: 0.85;
+            letter-spacing: -0.04em;
+            color: var(--amber);
+        }
+
+        .final-score span { color: var(--muted); }
+
+        /* ---------- Rundown ---------- */
+
+        .rundown { margin-top: 4rem; }
+
+        .rundown h2 {
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin: 0 0 0.75rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .rundown ol { list-style: none; margin: 0; padding: 0; }
+
+        .entry {
+            display: grid;
+            grid-template-columns: 2.5rem 1fr auto;
+            align-items: baseline;
+            gap: 1rem;
+            padding: 0.7rem 0;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .entry-rank {
+            font-size: 0.8125rem;
+            color: var(--muted);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .entry:first-child .entry-rank { color: var(--amber); }
+        .entry-name { overflow-wrap: anywhere; }
+
+        .entry-score {
+            font-family: var(--display);
+            font-weight: 800;
+            font-size: 1.25rem;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .empty { color: var(--muted); font-size: 0.9375rem; padding: 0.75rem 0; }
+
+        [hidden] { display: none !important; }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                transition-duration: 0.01ms !important;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="container mt-5">
-        <div class="row justify-content-center">
-            <div class="col-md-8 col-lg-6">
-                <div class="quiz-container text-center">
-                    <h1 class="mb-4">Music Quiz</h1>
-                    <p class="score mb-4">Score: <span id="score">0</span>/<span id="total">0</span></p>
-                    
-                    <!-- Username input at start -->
-                    <div id="username-container" class="mb-4">
-                        <input type="text" id="username-input" class="form-control mb-2" 
-                               placeholder="Enter your username" autocomplete="off">
-                        <button id="start-game" class="btn btn-primary">Start Game</button>
-                    </div>
-                    
-                    <!-- Game container (initially hidden) -->
-                    <div id="game-container" style="display: none;">
-                        <h2 class="mb-4">Name That Artist! 🎵</h2>
-                        
-                        <!-- Add filter controls -->
-                        <div class="row mb-4">
-                            <div class="col-md-6 mb-3">
-                                <label for="genre-select" class="form-label">Select Genres</label>
-                                <select id="genre-select" class="form-control" multiple>
-                                    {% for genre in genres %}
-                                    <option value="{{ genre }}">{{ genre }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label for="decade-select" class="form-label">Select Decades</label>
-                                <select id="decade-select" class="form-control" multiple>
-                                    {% for decade in decades %}
-                                    <option value="{{ decade }}">{{ decade }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                        </div>
-                        
-                        <div id="error-message" class="mb-4"></div>
-                        
-                        <div class="d-flex justify-content-center align-items-center mb-4">
-                            <button id="playButton" class="btn btn-play">
-                                <i class="fas fa-play"></i>
-                            </button>
-                        </div>
-                        
-                        <div id="feedback" class="feedback"></div>
-                        
-                        <div class="mb-3">
-                            <input type="text" id="answer-input" class="form-control" 
-                                   placeholder="Who's the artist?" autocomplete="off">
-                        </div>
-                        
-                        <div class="button-container">
-                            <button id="submitButton" class="btn btn-primary mb-3">Submit Answer</button>
-                            <button id="nextSongButton" class="btn btn-primary mb-3" style="display: none;">Next Song</button>
-                        </div>
-                    </div>
+<div class="shell">
 
-                    <!-- Leaderboard -->
-                    <div id="leaderboard" class="mt-4">
-                        <h3>Top 10 Scores</h3>
-                        <div id="leaderboard-list" class="list-group">
-                            <!-- Leaderboard entries will be added here -->
-                        </div>
-                    </div>
-                </div>
-            </div>
+    <header class="masthead">
+        <span class="wordmark">Name that artist</span>
+        <span class="standing" id="standing">1960&ndash;now</span>
+    </header>
+
+    <!-- Opening -->
+    <section id="gate">
+        <h1 class="display">Six songs.<em>Name who&rsquo;s singing.</em></h1>
+        <form class="field" id="start-form">
+            <input class="text-input" type="text" id="username-input"
+                   placeholder="Your name" autocomplete="off" maxlength="32"
+                   aria-label="Your name">
+            <button class="btn" type="submit" id="start-game">Start</button>
+        </form>
+    </section>
+
+    <!-- Play -->
+    <section id="game" hidden>
+        <ol class="slots" id="slots" aria-label="Rounds"></ol>
+
+        <div class="stage">
+            <canvas id="eq" aria-hidden="true"></canvas>
+            <button class="play" id="playButton" type="button" aria-label="Play the clip" hidden>
+                <svg class="play-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M8 5.5v13l11-6.5z"/>
+                </svg>
+                <svg class="pause-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M7 5h3.2v14H7zm6.8 0H17v14h-3.2z"/>
+                </svg>
+            </button>
+            <span class="stage-hint" id="stage-hint">Finding a song</span>
         </div>
-    </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-    <script>
-        let currentAudio = null;
-        let hasSong = false;
-        let score = 0;
-        let total = 0;
-        const MAX_SONGS = {{ max_songs }};
-        let username = '';
+        <div class="notice" id="error-message" role="alert" hidden></div>
 
-        function updateScore() {
-            document.getElementById('score').textContent = score;
-            document.getElementById('total').textContent = total;
+        <form class="field" id="guess-form">
+            <input class="text-input" type="text" id="answer-input"
+                   placeholder="Who&rsquo;s the artist?" autocomplete="off" disabled
+                   aria-label="Your guess">
+            <button class="btn" type="submit" id="submitButton" disabled>Guess</button>
+        </form>
+
+        <div class="feedback" id="feedback" role="status" hidden></div>
+
+        <p><button class="btn btn-quiet" type="button" id="nextSongButton" hidden>Next song</button></p>
+    </section>
+
+    <!-- Result -->
+    <section id="final" class="final" hidden>
+        <p class="standing">Final</p>
+        <p class="final-score"><span id="final-score">0</span><span>/{{ max_songs }}</span></p>
+        <p class="lede" id="final-note"></p>
+        <button class="btn" type="button" id="playAgain">Play again</button>
+    </section>
+
+    <!-- Leaderboard -->
+    <section class="rundown">
+        <h2>The rundown</h2>
+        <ol id="leaderboard-list"></ol>
+    </section>
+
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    var MAX_SONGS = {{ max_songs }};
+
+    var gate = document.getElementById('gate');
+    var game = document.getElementById('game');
+    var finalCard = document.getElementById('final');
+    var slots = document.getElementById('slots');
+    var playButton = document.getElementById('playButton');
+    var stageHint = document.getElementById('stage-hint');
+    var answerInput = document.getElementById('answer-input');
+    var submitButton = document.getElementById('submitButton');
+    var nextSongButton = document.getElementById('nextSongButton');
+    var feedback = document.getElementById('feedback');
+    var errorMessage = document.getElementById('error-message');
+    var standing = document.getElementById('standing');
+    var leaderboardList = document.getElementById('leaderboard-list');
+
+    var audio = null;
+    var hasSong = false;
+    var round = 0;
+    var results = [];
+
+    /* ---------- Round slots ---------- */
+
+    function drawSlots() {
+        slots.replaceChildren();
+        for (var i = 0; i < MAX_SONGS; i++) {
+            var slot = document.createElement('li');
+            slot.className = 'slot';
+            if (results[i]) { slot.dataset.state = results[i]; }
+            slots.appendChild(slot);
         }
+    }
 
-        function updateLeaderboard() {
-            fetch('/leaderboard')
-                .then(response => response.json())
-                .then(scores => {
-                    const leaderboardList = document.getElementById('leaderboard-list');
-                    leaderboardList.innerHTML = '';
-                    scores.forEach((score, index) => {
-                        const entry = document.createElement('div');
-                        entry.className = 'list-group-item d-flex justify-content-between align-items-center';
+    function setStanding(text) { standing.textContent = text; }
 
-                        const rank = document.createElement('span');
-                        rank.className = 'badge bg-primary rounded-pill me-2';
-                        rank.textContent = index + 1;
+    /* ---------- The equalizer ----------
+       Reads the real audio through a Web Audio analyser. If that isn't
+       available the bars still move, driven by playback time instead. */
 
-                        // textContent, not innerHTML - usernames are player-supplied
-                        const name = document.createElement('span');
-                        name.className = 'flex-grow-1';
-                        name.textContent = score.username;
+    var canvas = document.getElementById('eq');
+    var ctx2d = canvas.getContext('2d');
+    var audioCtx = null;
+    var analyser = null;
+    var freqData = null;
+    var BARS = 56;
+    var levels = new Array(BARS).fill(0);
+    var stillMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-                        const points = document.createElement('span');
-                        points.className = 'badge bg-secondary';
-                        points.textContent = score.score;
+    function sizeCanvas() {
+        var ratio = window.devicePixelRatio || 1;
+        var rect = canvas.getBoundingClientRect();
+        canvas.width = Math.max(1, Math.floor(rect.width * ratio));
+        canvas.height = Math.max(1, Math.floor(rect.height * ratio));
+        ctx2d.setTransform(ratio, 0, 0, ratio, 0, 0);
+    }
 
-                        entry.append(rank, name, points);
-                        leaderboardList.appendChild(entry);
-                    });
-                });
-        }
+    window.addEventListener('resize', sizeCanvas);
 
-        function loadNewSong() {
-            console.log('Loading new song...');
-            
-            // Stop and cleanup any existing audio
-            if (currentAudio) {
-                currentAudio.pause();
-                currentAudio.src = '';
-                currentAudio = null;
+    var mediaSource = null;
+
+    function connectAnalyser(element) {
+        analyser = null;
+        if (stillMotion) { return; }
+        try {
+            if (!audioCtx) {
+                var Ctx = window.AudioContext || window.webkitAudioContext;
+                if (!Ctx) { return; }
+                audioCtx = new Ctx();
             }
-            hasSong = false;
+            // Each round has its own element, so drop the previous node
+            if (mediaSource) { mediaSource.disconnect(); }
 
-            // Reset UI state
-            $('#playButton i').removeClass('fa-pause').addClass('fa-play');
-            $('#playButton').hide();
-            $('#submitButton').prop('disabled', true).show();
-            $('#nextSongButton').hide();
-            $('#answer-input').prop('disabled', true).val('');
-            $('#error-message').removeClass('show').hide();
-            $('#feedback').hide();
-            
-            const selectedGenres = $('#genre-select').val() || [];
-            const selectedDecades = $('#decade-select').val() || [];
-            
-            console.log('Current filters:', { genres: selectedGenres, decades: selectedDecades });
-            
-            // First update filters
-            fetch('/update_filters', {
+            mediaSource = audioCtx.createMediaElementSource(element);
+            analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 256;
+            analyser.smoothingTimeConstant = 0.75;
+            freqData = new Uint8Array(analyser.frequencyBinCount);
+            mediaSource.connect(analyser);
+            analyser.connect(audioCtx.destination);
+        } catch (e) {
+            analyser = null;
+        }
+    }
+
+    function sampleLevels() {
+        var playing = audio && !audio.paused;
+
+        if (analyser && playing) {
+            analyser.getByteFrequencyData(freqData);
+            for (var i = 0; i < BARS; i++) {
+                // Spread the useful part of the spectrum across the bars
+                var bin = Math.floor(Math.pow(i / BARS, 1.6) * (freqData.length * 0.7));
+                levels[i] = freqData[bin] / 255;
+            }
+            return;
+        }
+
+        for (var j = 0; j < BARS; j++) {
+            var target;
+            if (playing) {
+                // No analyser: a travelling wave keyed to playback position
+                var t = audio.currentTime * 2.4;
+                target = 0.18 + 0.42 * Math.abs(Math.sin(t + j * 0.35))
+                              * (0.55 + 0.45 * Math.sin(t * 0.6 + j * 0.11));
+            } else {
+                target = 0.05;
+            }
+            levels[j] += (target - levels[j]) * 0.18;
+        }
+    }
+
+    function paint() {
+        var width = canvas.clientWidth;
+        var height = canvas.clientHeight;
+        ctx2d.clearRect(0, 0, width, height);
+
+        var gradient = ctx2d.createLinearGradient(0, 0, width, 0);
+        gradient.addColorStop(0, '#E0197B');
+        gradient.addColorStop(0.55, '#FFB627');
+        gradient.addColorStop(1, '#E0197B');
+        ctx2d.fillStyle = gradient;
+
+        var gap = 3;
+        var barWidth = Math.max(2, (width - gap * (BARS - 1)) / BARS);
+        var mid = height / 2;
+
+        for (var i = 0; i < BARS; i++) {
+            var level = Math.max(0.02, Math.min(1, levels[i]));
+            var barHeight = Math.max(3, level * height * 0.82);
+            var x = i * (barWidth + gap);
+            var y = mid - barHeight / 2;
+            ctx2d.globalAlpha = 0.28 + level * 0.72;
+            if (ctx2d.roundRect) {
+                ctx2d.beginPath();
+                ctx2d.roundRect(x, y, barWidth, barHeight, barWidth / 2);
+                ctx2d.fill();
+            } else {
+                ctx2d.fillRect(x, y, barWidth, barHeight);
+            }
+        }
+        ctx2d.globalAlpha = 1;
+    }
+
+    function frame() {
+        sampleLevels();
+        paint();
+        requestAnimationFrame(frame);
+    }
+
+    /* ---------- Errors ---------- */
+
+    /* Anything that breaks in a browser is invisible to us unless we send it
+       back, so every failure below is reported as well as shown. */
+    function hostOf(url) {
+        try { return new URL(url).host; } catch (e) { return '?'; }
+    }
+
+    function reportError(context, detail) {
+        try {
+            fetch('/log-error', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
-                    genres: selectedGenres,
-                    decades: selectedDecades
-                })
-            })
-            .then(response => response.json())
-            .then(() => {
-                // Then get a new song
-                return fetch('/new-song');
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    console.error('Error:', data.error);
-                    const $error = $('#error-message');
-                    $error
-                        .text(data.error)
-                        .addClass('show')
-                        .show();
+                    context: context,
+                    detail: String(detail).slice(0, 300)
+                }),
+                keepalive: true
+            }).catch(function () {});
+        } catch (e) { /* reporting must never break the game */ }
+    }
+
+    function showError(text, context, detail) {
+        errorMessage.textContent = text;
+        errorMessage.hidden = false;
+        if (context) { reportError(context, detail === undefined ? text : detail); }
+    }
+
+    function clearError() { errorMessage.hidden = true; }
+
+    window.addEventListener('error', function (event) {
+        reportError('window', (event.message || '') + ' @' +
+            (event.filename || '') + ':' + (event.lineno || 0));
+    });
+
+    window.addEventListener('unhandledrejection', function (event) {
+        reportError('promise', (event.reason && event.reason.message) || event.reason);
+    });
+
+    /* ---------- Leaderboard ---------- */
+
+    function loadLeaderboard() {
+        fetch('/leaderboard')
+            .then(function (r) { return r.json(); })
+            .then(function (scores) {
+                leaderboardList.replaceChildren();
+
+                if (!Array.isArray(scores) || !scores.length) {
+                    var empty = document.createElement('li');
+                    empty.className = 'empty';
+                    empty.textContent = 'No scores yet. Be first.';
+                    leaderboardList.appendChild(empty);
                     return;
                 }
 
-                if (!data.preview_url) {
-                    throw new Error('Invalid song data received');
-                }
+                scores.forEach(function (entry, index) {
+                    var row = document.createElement('li');
+                    row.className = 'entry';
 
-                // Clear any previous error
-                $('#error-message').removeClass('show').hide();
+                    var rank = document.createElement('span');
+                    rank.className = 'entry-rank';
+                    rank.textContent = String(index + 1).padStart(2, '0');
 
-                // Update audio source and show play button.
-                // The answer stays on the server - we only get audio.
-                currentAudio = new Audio(data.preview_url);
-                hasSong = true;
+                    // textContent, not innerHTML - names are player-supplied
+                    var name = document.createElement('span');
+                    name.className = 'entry-name';
+                    name.textContent = entry.username;
 
-                // Add ended event listener
-                currentAudio.addEventListener('ended', () => {
-                    $('#playButton i').removeClass('fa-pause').addClass('fa-play');
+                    var score = document.createElement('span');
+                    score.className = 'entry-score';
+                    score.textContent = entry.score;
+
+                    row.append(rank, name, score);
+                    leaderboardList.appendChild(row);
                 });
-                
-                $('#playButton').show();
-                $('#submitButton').prop('disabled', false);
-                $('#answer-input').prop('disabled', false);
             })
-            .catch(error => {
-                console.error('Error:', error);
-                $('#error-message')
-                    .text('Error loading song. Please try again.')
-                    .addClass('show')
-                    .show();
-            });
+            .catch(function (error) { reportError('leaderboard', error); });
+    }
+
+    /* ---------- Rounds ---------- */
+
+    function stopAudio() {
+        if (audio) {
+            audio.pause();
+            audio.src = '';
+            audio = null;
         }
-        
-        // Play button click handler
-        $('#playButton').on('click', function() {
-            if (!currentAudio) return;
-            
-            const icon = $(this).find('i');
-            if (currentAudio.paused) {
-                currentAudio.play();
-                icon.removeClass('fa-play').addClass('fa-pause');
-            } else {
-                currentAudio.pause();
-                icon.removeClass('fa-pause').addClass('fa-play');
-            }
+        playButton.dataset.playing = 'false';
+    }
+
+    /* crossOrigin is what lets the analyser read the audio, but it also makes
+       playback fail outright on a host that stops sending CORS headers. If the
+       clip won't load, fall back to plain playback without the analyser. */
+    function attachAudio(url, allowAnalyser) {
+        var element = new Audio();
+        if (allowAnalyser) { element.crossOrigin = 'anonymous'; }
+        element.preload = 'auto';
+
+        element.addEventListener('ended', function () {
+            if (element !== audio) { return; }
+            playButton.dataset.playing = 'false';
         });
 
-        // Start game when username is submitted
-        document.getElementById('start-game').addEventListener('click', () => {
-            username = document.getElementById('username-input').value.trim();
-            if (username) {
-                fetch('/set_username', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ username: username })
-                })
-                .then(() => {
-                    document.getElementById('username-container').style.display = 'none';
-                    document.getElementById('game-container').style.display = 'block';
-                    loadNewSong();
-                });
+        element.addEventListener('error', function () {
+            // Tearing an element down fires 'error' too. Only the clip we're
+            // actually on can report a failure.
+            if (element !== audio) { return; }
+
+            if (allowAnalyser) {
+                attachAudio(url, false);
+                return;
             }
+            var media = element.error;
+            showError('That clip would not load. Skip to the next one.',
+                'audio-load',
+                'code=' + (media ? media.code : '?') +
+                ' host=' + hostOf(url) + ' analyser=' + allowAnalyser);
+            nextSongButton.hidden = false;
         });
 
-        // Auto-start game if username is already set (after reload)
-        fetch('/check-session')
-            .then(response => response.json())
-            .then(data => {
-                if (data.username) {
-                    document.getElementById('username-container').style.display = 'none';
-                    document.getElementById('game-container').style.display = 'block';
-                    loadNewSong();
-                }
-            });
+        audio = element;
+        element.src = url;
+        if (allowAnalyser) { connectAnalyser(element); } else { analyser = null; }
+    }
 
-        // Next song button handler
-        document.getElementById('nextSongButton').addEventListener('click', () => {
-            // Don't load new song if game is over
-            if (total >= MAX_SONGS) {
-                showGameOver();
-                return;
-            }
-            loadNewSong();
-        });
+    function loadNewSong() {
+        stopAudio();
+        hasSong = false;
 
-        function showGameOver() {
-            // Stop any playing audio
-            if (currentAudio) {
-                currentAudio.pause();
-                currentAudio.src = '';
-                currentAudio = null;
-            }
-            
-            // Hide game controls
-            document.getElementById('playButton').style.display = 'none';
-            document.getElementById('submitButton').style.display = 'none';
-            document.getElementById('answer-input').style.display = 'none';
-            document.getElementById('nextSongButton').style.display = 'none';
-            
-            const feedback = document.getElementById('feedback');
-            feedback.innerHTML = `
-                <h3 class="mb-4">Game Over!</h3>
-                <p class="modal-response">Final Score: ${score}/${MAX_SONGS}</p>
-                <button onclick="window.location.href = window.location.href + '?t=' + new Date().getTime()" class="btn btn-primary mt-3">Play Again</button>
-            `;
-            feedback.style.display = 'block';
-            
-            // Update leaderboard
-            updateLeaderboard();
-        }
-        
-        // Update submit button handler
-        document.getElementById('submitButton').addEventListener('click', () => {
-            const submitButton = document.getElementById('submitButton');
-            const answerInput = document.getElementById('answer-input');
-            const answer = answerInput.value.trim();
-            
-            if (!answer) {
-                const errorMessage = document.getElementById('error-message');
-                errorMessage.textContent = "Please enter an answer!";
-                errorMessage.classList.add('show');
-                return;
-            }
-            
-            // Hide error message if it was showing
-            document.getElementById('error-message').classList.remove('show');
-            
-            if (!hasSong) {
-                console.error('No song loaded!');
-                $('#error-message')
-                    .text('Error: No song loaded. Please try refreshing the page.')
-                    .addClass('show')
-                    .show();
-                return;
-            }
+        clearError();
+        feedback.hidden = true;
+        playButton.hidden = true;
+        nextSongButton.hidden = true;
+        submitButton.hidden = false;
+        submitButton.disabled = true;
+        answerInput.disabled = true;
+        answerInput.value = '';
+        stageHint.hidden = false;
+        stageHint.textContent = 'Finding a song';
 
-            // Disable submit button while checking
-            submitButton.disabled = true;
-
-            fetch('/check-answer', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ answer: answer })
-            })
-            .then(response => response.json())
-            .then(data => {
+        fetch('/new-song')
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
                 if (data.error) {
-                    throw new Error(data.error);
+                    showError(data.error, 'new-song', data.error);
+                    stageHint.hidden = true;
+                    return;
                 }
-                
-                // Update score display
-                score = data.score;
-                total = data.total;
-                updateScore();
-                
-                // Show feedback
-                const feedback = document.getElementById('feedback');
-                feedback.innerHTML = data.message || 'No feedback message received';
-                feedback.className = 'feedback ' + (data.correct ? 'correct' : 'incorrect');
-                feedback.style.display = 'block';
-                
-                // Hide submit button and show next song button
-                document.getElementById('submitButton').style.display = 'none';
-                document.getElementById('nextSongButton').style.display = 'block';
-                
-                // Clear input
-                answerInput.value = '';
-                
-                // Re-enable submit button (for next round)
+                if (!data.preview_url) { throw new Error('no preview'); }
+
+                // The answer stays on the server; we only get audio
+                attachAudio(data.preview_url, true);
+
+                hasSong = true;
+                playButton.hidden = false;
+                stageHint.textContent = 'Press play';
+                answerInput.disabled = false;
                 submitButton.disabled = false;
-                
-                // If game is over, show game over screen after showing the answer
+                answerInput.focus();
+            })
+            .catch(function (error) {
+                stageHint.hidden = true;
+                showError('Could not load a song. Try again.', 'new-song-request', error);
+            });
+    }
+
+    playButton.addEventListener('click', function () {
+        if (!audio) { return; }
+        if (audioCtx && audioCtx.state === 'suspended') { audioCtx.resume(); }
+
+        if (audio.paused) {
+            audio.play().catch(function (error) {
+                showError('Your browser blocked playback. Press play again.',
+                    'playback-blocked', error);
+            });
+            playButton.dataset.playing = 'true';
+            stageHint.hidden = true;
+        } else {
+            audio.pause();
+            playButton.dataset.playing = 'false';
+        }
+    });
+
+    /* ---------- Guessing ---------- */
+
+    document.getElementById('guess-form').addEventListener('submit', function (event) {
+        event.preventDefault();
+
+        var guess = answerInput.value.trim();
+        if (!guess) { showError('Type a guess first.'); return; }
+        if (!hasSong) { showError('No clip loaded. Reload the page.'); return; }
+
+        clearError();
+        submitButton.disabled = true;
+        answerInput.disabled = true;
+
+        fetch('/check-answer', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({answer: guess})
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                // The server no longer has the clip we were on - usually an
+                // expired session. Recover with a new one rather than stranding
+                // the player on an error they can't act on.
+                if (data.reason === 'no_song') {
+                    reportError('session-lost', data.error);
+                    loadNewSong();          // clears the notice, so message after
+                    showError(data.error);
+                    return;
+                }
+
+                if (data.error) { throw new Error(data.error); }
+
+                stopAudio();
+
+                results[round] = data.correct ? 'hit' : 'miss';
+                round = data.total;
+                drawSlots();
+                setStanding('Round ' + Math.min(round + 1, MAX_SONGS) + ' of ' + MAX_SONGS);
+
+                feedback.innerHTML = data.message || '';
+                feedback.dataset.correct = data.correct ? 'true' : 'false';
+                feedback.hidden = false;
+
+                submitButton.hidden = true;
+
                 if (data.game_over) {
-                    // Hide the next song button on game over
-                    document.getElementById('nextSongButton').style.display = 'none';
-                    setTimeout(() => {
-                        showGameOver();
-                    }, 5000);  // Wait 5 seconds to show the answer
+                    showFinal(data.score);
+                } else {
+                    nextSongButton.hidden = false;
+                    nextSongButton.focus();
                 }
             })
-            .catch(error => {
-                console.error('Error:', error);
-                $('#error-message')
-                    .text('Error: ' + error.message)
-                    .addClass('show')
-                    .show();
+            .catch(function (error) {
+                showError(error.message || 'Could not check that guess.',
+                    'check-answer', error);
                 submitButton.disabled = false;
+                answerInput.disabled = false;
             });
-        });
-        
-        // Load leaderboard on page load
-        updateLeaderboard();
-        
-        // Start with username input, don't load first song yet
-        document.getElementById('game-container').style.display = 'none';
-        
-        // Initialize Select2
-        $(document).ready(function() {
-            $('#genre-select').select2({
-                placeholder: 'Select genres...',
-                allowClear: true
+    });
+
+    nextSongButton.addEventListener('click', loadNewSong);
+
+    /* ---------- Finish ---------- */
+
+    var NOTES = [
+        'Nothing landed. The charts owe you nothing.',
+        'One. It counts.',
+        'Two. Respectable.',
+        'Half of them. Solid ears.',
+        'Four. You know your stuff.',
+        'Five. Show-off.',
+        'All six. Nobody likes you.'
+    ];
+
+    function showFinal(score) {
+        stopAudio();
+        document.getElementById('final-score').textContent = score;
+        document.getElementById('final-note').textContent =
+            NOTES[Math.min(score, NOTES.length - 1)];
+        game.hidden = true;
+        finalCard.hidden = false;
+        setStanding('Done');
+        loadLeaderboard();
+    }
+
+    document.getElementById('playAgain').addEventListener('click', function () {
+        results = [];
+        round = 0;
+        drawSlots();
+        finalCard.hidden = true;
+        game.hidden = false;
+        setStanding('Round 1 of ' + MAX_SONGS);
+        loadNewSong();
+    });
+
+    /* ---------- Starting ---------- */
+
+    function beginGame() {
+        gate.hidden = true;
+        finalCard.hidden = true;
+        game.hidden = false;
+        results = [];
+        round = 0;
+        drawSlots();
+        setStanding('Round 1 of ' + MAX_SONGS);
+        loadNewSong();
+    }
+
+    document.getElementById('start-form').addEventListener('submit', function (event) {
+        event.preventDefault();
+        var name = document.getElementById('username-input').value.trim();
+        if (!name) { return; }
+
+        fetch('/set_username', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({username: name})
+        })
+            .then(function (r) { return r.json(); })
+            .then(beginGame)
+            .catch(function (error) {
+                showError('Could not start. Try again.', 'start-game', error);
             });
-            
-            $('#decade-select').select2({
-                placeholder: 'Select decades...',
-                allowClear: true
-            });
-            
-            // Add change handlers for filters
-            $('#genre-select, #decade-select').on('change', function() {
-                loadNewSong();
-            });
-        });
-    </script>
+    });
+
+    fetch('/check-session')
+        .then(function (r) { return r.json(); })
+        .then(function (data) { if (data.username) { beginGame(); } })
+        .catch(function () { /* stay on the opening */ });
+
+    sizeCanvas();
+    drawSlots();
+    requestAnimationFrame(frame);
+    loadLeaderboard();
+})();
+</script>
 </body>
 </html>

@@ -5,6 +5,7 @@ import os
 import html
 import sys
 import logging
+import secrets
 from difflib import SequenceMatcher
 
 import library
@@ -20,13 +21,40 @@ app = Flask(__name__)
 # Gunicorn imports this module as "app"; running it directly means local dev.
 RUNNING_LOCALLY = __name__ == '__main__'
 
-secret_key = os.environ.get('SECRET_KEY')
-if not secret_key:
-    secret_key = os.urandom(32)
+def load_secret_key():
+    """The key that signs session cookies.
+
+    A fresh key on every boot signs everyone out, losing the song they were on
+    mid-game. Production sets SECRET_KEY. Locally we keep one on disk so
+    restarting the app doesn't interrupt whoever is playing.
+    """
+    key = os.environ.get('SECRET_KEY')
+    if key:
+        return key
+
+    if RUNNING_LOCALLY:
+        path = os.path.join(library.BASE_DIR, '.secret_key')
+        try:
+            if os.path.exists(path):
+                stored = open(path).read().strip()
+                if stored:
+                    return stored
+            generated = secrets.token_hex(32)
+            with open(path, 'w') as handle:
+                handle.write(generated)
+            logger.info(f'Generated a local session key at {path}')
+            return generated
+        except OSError as e:
+            logger.warning(f'Could not persist a local session key: {e}')
+
     logger.warning(
-        "SECRET_KEY is not set - using a random key. Sessions will not survive a restart."
+        'SECRET_KEY is not set - using a random key. Restarting will sign '
+        'everyone out mid-game. Set it in production.'
     )
-app.secret_key = secret_key
+    return os.urandom(32)
+
+
+app.secret_key = load_secret_key()
 
 app.config.update(
     SESSION_COOKIE_SECURE=os.environ.get(
@@ -401,10 +429,7 @@ def index():
     if song_data is None:
         return render_template('error.html', message="Failed to load song data")
 
-    return render_template('index.html',
-                           genres=[g.title() for g in GENRE_MAPPING],
-                           decades=[f"{d}s" for d in all_decades],
-                           max_songs=MAX_SONGS)
+    return render_template('index.html', max_songs=MAX_SONGS)
 
 
 def record_score(username, final_score):
@@ -435,7 +460,12 @@ def check_answer():
 
         current_song = session.get('current_song')
         if not current_song:
-            return jsonify({'error': 'No song in progress. Please load a new song.'}), 400
+            # Usually a session that expired or was signed by an older key.
+            # `reason` lets the browser recover instead of dead-ending.
+            return jsonify({
+                'error': 'Lost track of that clip. Here comes a fresh one.',
+                'reason': 'no_song',
+            }), 400
 
         user_answer = clean_text(str(data.get('answer', '')).lower())
         correct_artist = clean_text(current_song['artist'].lower())
@@ -533,6 +563,33 @@ def set_username():
     except Exception as e:
         logger.error(f"Error setting username: {e}")
         return jsonify({'error': 'Could not set username'}), 500
+
+
+CLIENT_ERROR_CONTEXT_LENGTH = 60
+CLIENT_ERROR_DETAIL_LENGTH = 300
+
+
+@app.route('/log-error', methods=['POST'])
+def log_error():
+    """Record a browser-side failure in the server log.
+
+    Without this, anything that breaks in someone's browser - a clip that won't
+    play, a request that fails - is only ever seen by that player. Fields are
+    truncated because this endpoint is open to anyone.
+    """
+    data = request.get_json(silent=True) or {}
+    context = str(data.get('context', 'unknown'))[:CLIENT_ERROR_CONTEXT_LENGTH]
+    detail = str(data.get('detail', ''))[:CLIENT_ERROR_DETAIL_LENGTH]
+
+    current = session.get('current_song') or {}
+    logger.warning(
+        'client error [%s] %s | song=%s - %s | player=%s | ua=%s',
+        context, detail,
+        current.get('artist', '-'), current.get('song', '-'),
+        session.get('username', '-'),
+        request.headers.get('User-Agent', '-')[:120],
+    )
+    return '', 204
 
 
 @app.route('/check-session')

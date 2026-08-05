@@ -10,3 +10,4 @@ venv/
 .cache/
 **/.cache
 **/.cache/
+.secret_key
