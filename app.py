@@ -57,6 +57,7 @@ if USE_POSTGRES:
     import psycopg2
 
 MAX_SONGS = 6              # Songs per game
+MIN_YEAR = 1960            # Songs released before this are left out of the quiz
 MAX_RECENT_SONGS = 50      # Per-player replay memory
 MAX_USERNAME_LENGTH = 32
 LEADERBOARD_SIZE = 10
@@ -235,11 +236,19 @@ def load_song_data():
         logger.error("No song data available")
         return None, []
 
+    # The quiz only covers MIN_YEAR onward. This also drops rows with an
+    # unreadable Year, which could not be placed in a decade anyway.
+    if 'Year' in df.columns:
+        year = pd.to_numeric(df['Year'], errors='coerce')
+        dropped = int((~(year >= MIN_YEAR)).sum())
+        df = df[year >= MIN_YEAR].copy()
+        if dropped:
+            logger.info(f"Dropped {dropped} songs released before {MIN_YEAR}")
+
     # Derive Decade from Year when the dataset does not carry it
     if 'Decade' not in df.columns and 'Year' in df.columns:
         year = pd.to_numeric(df['Year'], errors='coerce')
-        df = df[year.notna()].copy()
-        df['Decade'] = ((year[year.notna()] // 10) * 10).astype(int).astype(str) + 's'
+        df['Decade'] = ((year // 10) * 10).astype(int).astype(str) + 's'
         logger.info("Created Decade column from Year")
 
     df = df[df['Decade'].notna()].copy()
