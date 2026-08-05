@@ -247,6 +247,20 @@ def test_song_data_loaded():
     assert quiz.all_decades == sorted(quiz.all_decades)
 
 
+def test_songs_before_min_year_are_excluded():
+    import pandas as pd
+
+    years = pd.to_numeric(quiz.song_data['Year'], errors='coerce')
+    assert years.min() >= quiz.MIN_YEAR
+    assert years.notna().all()
+
+
+def test_decade_options_start_at_min_year():
+    assert min(quiz.all_decades) >= quiz.MIN_YEAR - (quiz.MIN_YEAR % 10)
+    assert 1930 not in quiz.all_decades
+    assert 1950 not in quiz.all_decades
+
+
 def test_parent_genre_mapping():
     assert quiz.map_to_parent_genre('Hard Rock') == 'rock'
     assert quiz.map_to_parent_genre('  TRAP ') == 'hip hop'
