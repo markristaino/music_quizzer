@@ -17,6 +17,10 @@ import app as quiz  # noqa: E402
 
 FAKE_PREVIEW = 'https://example.invalid/preview.mp3'
 
+# A guess that cannot fuzzy-match any real artist or title. Plain words like
+# "wrong" occasionally match a song called Wrong, which made tests flaky.
+NO_MATCH = 'zzzzzzzzzz qqqqqqqqqq'
+
 
 @pytest.fixture
 def client(monkeypatch):
@@ -153,7 +157,7 @@ def test_game_ends_after_max_songs(client):
 
     for round_number in range(1, quiz.MAX_SONGS + 1):
         client.get('/new-song')
-        result = client.post('/check-answer', json={'answer': 'wrong'}).get_json()
+        result = client.post('/check-answer', json={'answer': NO_MATCH}).get_json()
         assert result['total'] == round_number
         assert result['game_over'] is (round_number == quiz.MAX_SONGS)
 
@@ -171,7 +175,8 @@ def test_finished_game_reaches_the_leaderboard(client):
 
     board = client.get('/leaderboard').get_json()
     assert board[0]['username'] == 'winner'
-    assert board[0]['score'] == result['score']
+    assert board[0]['total'] == result['score']
+    assert board[0]['games'] == 1
 
 
 def test_a_score_of_zero_is_not_recorded(client):
@@ -179,7 +184,7 @@ def test_a_score_of_zero_is_not_recorded(client):
 
     for _ in range(quiz.MAX_SONGS):
         client.get('/new-song')
-        result = client.post('/check-answer', json={'answer': 'wrong'}).get_json()
+        result = client.post('/check-answer', json={'answer': NO_MATCH}).get_json()
 
     assert result['score'] == 0
     assert result['made_leaderboard'] is False
@@ -192,12 +197,73 @@ def test_one_right_still_counts(client):
     for round_number in range(quiz.MAX_SONGS):
         client.get('/new-song')
         answer = current_answer(client)
-        guess = answer['artist'] if round_number == 0 else 'wrong'
+        guess = answer['artist'] if round_number == 0 else NO_MATCH
         result = client.post('/check-answer', json={'answer': guess}).get_json()
 
     assert result['score'] == 1
     board = client.get('/leaderboard').get_json()
     assert [entry['username'] for entry in board] == ['scraped-by']
+    assert board[0]['total'] == 1
+
+
+def play_game(client, username, correct_rounds):
+    """Play a full game, getting `correct_rounds` of them right."""
+    start_game(client, username)
+    for index in range(quiz.MAX_SONGS):
+        client.get('/new-song')
+        answer = current_answer(client)
+        guess = answer['artist'] if index < correct_rounds else NO_MATCH
+        client.post('/check-answer', json={'answer': guess})
+
+
+# --- All-time standings ------------------------------------------------------
+
+def test_totals_accumulate_across_games(client):
+    play_game(client, 'repeat', 2)
+    play_game(client, 'repeat', 3)
+
+    board = client.get('/leaderboard').get_json()
+
+    assert len(board) == 1
+    assert board[0] == {'username': 'repeat', 'total': 5, 'games': 2, 'best': 3}
+
+
+def test_names_are_grouped_regardless_of_case(client):
+    play_game(client, 'Mark', 2)
+    play_game(client, 'mark', 1)
+
+    board = client.get('/leaderboard').get_json()
+
+    assert len(board) == 1
+    assert board[0]['total'] == 3
+    assert board[0]['games'] == 2
+
+
+def test_standings_rank_by_total(client):
+    play_game(client, 'steady', 2)
+    play_game(client, 'steady', 2)   # 4 across two games
+    play_game(client, 'oneshot', 3)  # 3 in one
+
+    board = client.get('/leaderboard').get_json()
+
+    assert [entry['username'] for entry in board] == ['steady', 'oneshot']
+    assert board[0]['total'] == 4
+
+
+def test_fewer_games_breaks_a_tie(client):
+    play_game(client, 'efficient', 3)
+    play_game(client, 'grinder', 2)
+    play_game(client, 'grinder', 1)
+
+    board = client.get('/leaderboard').get_json()
+
+    assert [entry['username'] for entry in board] == ['efficient', 'grinder']
+
+
+def test_blank_games_do_not_add_a_player(client):
+    play_game(client, 'shutout', 0)
+
+    assert client.get('/leaderboard').get_json() == []
 
 
 def test_username_stays_after_game_over(client):
@@ -205,7 +271,7 @@ def test_username_stays_after_game_over(client):
 
     for _ in range(quiz.MAX_SONGS):
         client.get('/new-song')
-        client.post('/check-answer', json={'answer': 'wrong'})
+        client.post('/check-answer', json={'answer': NO_MATCH})
 
     assert client.get('/check-session').get_json() == {
         'has_session': True, 'username': 'persistent'
@@ -233,7 +299,7 @@ def test_wrong_answer_message_escapes_song_data(client, monkeypatch):
     with client.session_transaction() as session:
         session['current_song'] = {'artist': '<script>x</script>', 'song': 'Test'}
 
-    message = client.post('/check-answer', json={'answer': 'wrong'}).get_json()['message']
+    message = client.post('/check-answer', json={'answer': NO_MATCH}).get_json()['message']
 
     assert '<script>' not in message
     assert '&lt;script&gt;' in message

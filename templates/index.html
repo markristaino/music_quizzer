@@ -315,6 +315,13 @@
         .entry:first-child .entry-rank { color: var(--amber); }
         .entry-name { overflow-wrap: anywhere; }
 
+        .entry-meta {
+            display: block;
+            font-size: 0.75rem;
+            color: var(--muted);
+            letter-spacing: 0.04em;
+        }
+
         .entry-score {
             font-family: var(--display);
             font-weight: 800;
@@ -394,7 +401,7 @@
 
     <!-- Leaderboard -->
     <section class="rundown">
-        <h2>The rundown</h2>
+        <h2>All time</h2>
         <ol id="leaderboard-list"></ol>
     </section>
 
@@ -424,6 +431,7 @@
     var hasSong = false;
     var round = 0;
     var results = [];
+    var pendingFinalScore = null;
 
     /* ---------- Round slots ---------- */
 
@@ -621,9 +629,15 @@
                     name.className = 'entry-name';
                     name.textContent = entry.username;
 
+                    var meta = document.createElement('span');
+                    meta.className = 'entry-meta';
+                    meta.textContent = entry.games === 1
+                        ? '1 game' : entry.games + ' games';
+                    name.appendChild(meta);
+
                     var score = document.createElement('span');
                     score.className = 'entry-score';
-                    score.textContent = entry.score;
+                    score.textContent = entry.total;
 
                     row.append(rank, name, score);
                     leaderboardList.appendChild(row);
@@ -781,12 +795,18 @@
 
                 submitButton.hidden = true;
 
+                // Hold on the last reveal so the answer can be read - the
+                // results card replaces this panel, so jumping straight there
+                // hides who it was.
                 if (data.game_over) {
-                    showFinal(data.score);
+                    pendingFinalScore = data.score;
+                    nextSongButton.textContent = 'See results';
                 } else {
-                    nextSongButton.hidden = false;
-                    nextSongButton.focus();
+                    pendingFinalScore = null;
+                    nextSongButton.textContent = 'Next song';
                 }
+                nextSongButton.hidden = false;
+                nextSongButton.focus();
             })
             .catch(function (error) {
                 showError(error.message || 'Could not check that guess.',
@@ -796,7 +816,14 @@
             });
     });
 
-    nextSongButton.addEventListener('click', loadNewSong);
+    nextSongButton.addEventListener('click', function () {
+        if (pendingFinalScore !== null) {
+            showFinal(pendingFinalScore);
+            pendingFinalScore = null;
+            return;
+        }
+        loadNewSong();
+    });
 
     /* ---------- Finish ---------- */
 
@@ -824,6 +851,8 @@
     document.getElementById('playAgain').addEventListener('click', function () {
         results = [];
         round = 0;
+        pendingFinalScore = null;
+        nextSongButton.textContent = 'Next song';
         drawSlots();
         finalCard.hidden = true;
         game.hidden = false;
@@ -839,6 +868,8 @@
         game.hidden = false;
         results = [];
         round = 0;
+        pendingFinalScore = null;
+        nextSongButton.textContent = 'Next song';
         drawSlots();
         setStanding('Round 1 of ' + MAX_SONGS);
         loadNewSong();

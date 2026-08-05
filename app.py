@@ -458,8 +458,30 @@ def index():
     return render_template('index.html', max_songs=MAX_SONGS)
 
 
+# Career totals, grouped case-insensitively so "Mark" and "mark" are one player.
+# Every finished game is already a row, so the history needs no extra table.
+STANDINGS_QUERY = '''
+    SELECT MIN(username), SUM(score), COUNT(*), MAX(score)
+    FROM scores
+    GROUP BY LOWER(username)
+    ORDER BY SUM(score) DESC, COUNT(*) ASC
+'''
+
+
+def standings(limit=LEADERBOARD_SIZE):
+    """All-time totals per player, best first."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(sql(STANDINGS_QUERY + ' LIMIT ?'), (limit,))
+        return [
+            {'username': name, 'total': int(total), 'games': int(games),
+             'best': int(best)}
+            for name, total, games, best in cursor.fetchall()
+        ]
+
+
 def record_score(username, final_score):
-    """Save a finished game and report whether it reached the leaderboard.
+    """Save a finished game and report whether the player is now in the top ten.
 
     A game where nothing was guessed right isn't a score worth keeping, so it
     never reaches the board.
@@ -470,20 +492,13 @@ def record_score(username, final_score):
 
     with get_db() as db:
         cursor = db.cursor()
-        cursor.execute(
-            sql('SELECT score FROM scores ORDER BY score DESC LIMIT ?'),
-            (LEADERBOARD_SIZE,)
-        )
-        current_scores = [row[0] for row in cursor.fetchall()]
-        made_leaderboard = (
-            len(current_scores) < LEADERBOARD_SIZE or final_score > current_scores[-1]
-        )
-
         cursor.execute(sql('INSERT INTO scores (username, score) VALUES (?, ?)'),
                        (username, final_score))
         db.commit()
 
-    return made_leaderboard
+    # Judge against the board people actually see: all-time totals
+    return any(row['username'].lower() == username.lower()
+               for row in standings(LEADERBOARD_SIZE))
 
 
 @app.route('/check-answer', methods=['POST'])
@@ -565,19 +580,9 @@ def check_answer():
 
 @app.route('/leaderboard')
 def leaderboard():
+    """All-time standings by player."""
     try:
-        with get_db() as conn:
-            cursor = conn.cursor()
-            cursor.execute(sql('''
-                SELECT username, score, timestamp
-                FROM scores
-                ORDER BY score DESC, timestamp ASC
-                LIMIT ?
-            '''), (LEADERBOARD_SIZE,))
-            return jsonify([
-                {'username': row[0], 'score': row[1], 'timestamp': str(row[2])}
-                for row in cursor.fetchall()
-            ])
+        return jsonify(standings())
     except Exception as e:
         logger.error(f"Error fetching leaderboard: {e}")
         return jsonify({'error': 'Could not load the leaderboard.'}), 500
