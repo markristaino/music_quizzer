@@ -14,7 +14,7 @@ from contextlib import contextmanager
 
 import pandas as pd
 
-from exclusions import is_excluded
+from artists import canonical_artist, is_excluded
 
 logger = logging.getLogger(__name__)
 
@@ -208,10 +208,13 @@ def _load_from_postgres():
     })
 
 
-def _drop_excluded_artists(df):
-    """Remove artists held out of the quiz. See exclusions.py."""
+def _apply_artist_rules(df):
+    """Tidy artist names, then drop the ones held out. See artists.py."""
     if df is None or df.empty or 'Artist' not in df.columns:
         return df
+
+    df = df.copy()
+    df['Artist'] = [canonical_artist(a) for a in df['Artist']]
 
     years = pd.to_numeric(df.get('Year'), errors='coerce')
     excluded = [
@@ -230,10 +233,10 @@ def load_songs():
     """Load the library from whichever backend is configured."""
     if USE_POSTGRES and songs_table_exists():
         logger.info('Loading song library from Postgres')
-        return _drop_excluded_artists(_load_from_postgres())
+        return _apply_artist_rules(_load_from_postgres())
 
     if USE_POSTGRES:
         logger.warning('Postgres has no song library yet - falling back to the CSV. '
                        'Run tools/build_library.py to populate it.')
 
-    return _drop_excluded_artists(_load_from_csv())
+    return _apply_artist_rules(_load_from_csv())

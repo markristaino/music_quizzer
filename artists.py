@@ -1,13 +1,12 @@
-"""Artists held out of the quiz for being too recognisable.
+"""Artist rules: who is held out of the quiz, and how names are tidied.
 
-Applied when the library is loaded, not when it's built, so rebuilding from the
-charts doesn't quietly let them back in. Edit this list and restart.
-
-Each entry is an artist name mapped to the year the exclusion starts, or None
-to exclude everything they've done.
+Both are applied when the library is loaded, not when it's built, so rebuilding
+from the charts can't quietly undo them. Edit and restart.
 """
 
+# Artist -> the year the exclusion starts, or None for everything they did.
 EXCLUDED_ARTISTS = {
+    'elvis presley': None,
     'the beach boys': None,
     'the beatles': None,
     'the police': None,
@@ -15,8 +14,21 @@ EXCLUDED_ARTISTS = {
 }
 
 
+# Credits the charts use that we'd rather show differently. Matched on the
+# whole credit, so joint billings like "Paul McCartney and Stevie Wonder" are
+# left alone.
+ARTIST_ALIASES = {
+    'little stevie wonder': 'Stevie Wonder',
+}
+
+
 def normalise_artist(artist):
     return ' '.join(str(artist).lower().split())
+
+
+def canonical_artist(artist):
+    """The name the quiz should use for this credit."""
+    return ARTIST_ALIASES.get(normalise_artist(artist), artist)
 
 
 def is_excluded(artist, year=None):
