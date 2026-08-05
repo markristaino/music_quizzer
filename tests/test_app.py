@@ -190,6 +190,24 @@ def test_the_retry_hint_gives_an_initial_and_a_year(client):
     assert 'Fleetwood' not in message
 
 
+@pytest.mark.parametrize('artist, expected', [
+    ('The Beach Boys', '<strong>The B</strong>'),
+    ('The Rolling Stones', '<strong>The R</strong>'),
+    ('the emotions', '<strong>The E</strong>'),
+    ('Fleetwood Mac', '<strong>F</strong>'),
+    ('Theo Katzman', '<strong>T</strong>'),      # "Theo" is not "the"
+])
+def test_a_leading_the_is_shown_not_spent(client, artist, expected):
+    """"The" reveals nothing, so give the letter after it."""
+    start_game(client)
+    client.get('/new-song')
+    with client.session_transaction() as session:
+        session['current_song'] = {'artist': artist, 'song': 'x', 'year': '1970'}
+
+    message = client.post('/check-answer', json={'answer': NO_MATCH}).get_json()['message']
+    assert expected in message
+
+
 def test_the_hint_uses_the_lead_not_a_guest(client):
     start_game(client)
     client.get('/new-song')

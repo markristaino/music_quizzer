@@ -312,7 +312,13 @@ def primary_artist(artist):
 def hint_for(current_song):
     """The nudge that comes with the second guess: an initial and a year."""
     lead = primary_artist(current_song.get('artist', ''))
-    initial = lead[:1].upper()
+
+    # "The" gives nothing away, so show it and reveal the letter that follows
+    words = lead.split()
+    if len(words) > 1 and words[0].lower() == 'the':
+        initial = 'The ' + words[1][:1].upper()
+    else:
+        initial = lead[:1].upper()
     year = str(current_song.get('year', '')).strip()
 
     parts = []

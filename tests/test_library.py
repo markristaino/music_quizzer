@@ -185,6 +185,49 @@ def test_durable_preview_urls_are_stored(db, monkeypatch):
         assert cursor.fetchone()[0] == 'https://itunes/x.m4a'
 
 
+def test_unreachable_lookups_stay_unchecked(db, monkeypatch):
+    """A network blip must not blacklist a song as having no preview."""
+    from previews import LookupFailed
+
+    library.upsert_songs([song_row('Blipped', 'A')])
+
+    def unreachable(song, artist):
+        raise LookupFailed('network down')
+
+    monkeypatch.setattr(refresh_library, 'find_preview', unreachable)
+    refresh_library.resolve_audio(limit=10)
+
+    with library.get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(library.sql(
+            'SELECT playable, preview_checked_at FROM songs WHERE song = ?'),
+            ('Blipped',))
+        playable, checked_at = cursor.fetchone()
+
+    assert playable is None      # still unknown, not False
+    assert checked_at is None    # so the next run tries again
+
+
+def test_a_real_miss_is_recorded(db, monkeypatch):
+    """Searched successfully and found nothing: that verdict does stick."""
+    library.upsert_songs([song_row('Obscure', 'B')])
+    monkeypatch.setattr(refresh_library, 'find_preview',
+                        lambda song, artist: (None, None, None))
+
+    refresh_library.resolve_audio(limit=10)
+
+    with library.get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(library.sql(
+            'SELECT playable, preview_checked_at FROM songs WHERE song = ?'),
+            ('Obscure',))
+        playable, checked_at = cursor.fetchone()
+
+    # SQLite hands booleans back as 0/1, so compare by truth, not identity
+    assert playable is not None and not playable
+    assert checked_at is not None
+
+
 # --- The refresh job ---------------------------------------------------------
 
 class FakeEntry:

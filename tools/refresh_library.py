@@ -21,7 +21,7 @@ from datetime import date, datetime
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import library  # noqa: E402
-from previews import EXPIRING_SOURCES, find_preview  # noqa: E402
+from previews import EXPIRING_SOURCES, LookupFailed, find_preview  # noqa: E402
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
@@ -84,7 +84,7 @@ def resolve_audio(limit=PREVIEW_BATCH):
 
     logger.info(f'Resolving audio for {len(candidates)} songs')
     checked_at = datetime.now()
-    pending, found, checked = [], 0, 0
+    pending, found, checked, unreachable = [], 0, 0, 0
 
     def flush():
         if pending:
@@ -93,7 +93,15 @@ def resolve_audio(limit=PREVIEW_BATCH):
             logger.info(f'  {checked}/{len(candidates)} checked, {found} playable')
 
     for song, artist in candidates:
-        preview, source, track_id = find_preview(song, artist)
+        try:
+            preview, source, track_id = find_preview(song, artist)
+        except LookupFailed as e:
+            # Leave it unchecked so a later run retries. Recording this as
+            # "no preview" would blacklist the song over a network blip.
+            unreachable += 1
+            logger.warning(f'  skipped {artist} - {song}: {e}')
+            continue
+
         if preview:
             found += 1
         checked += 1
@@ -116,8 +124,8 @@ def resolve_audio(limit=PREVIEW_BATCH):
             flush()
 
     flush()
-    logger.info(f'  {found} of {len(candidates)} playable '
-                f'({len(candidates) - found} have no preview anywhere)')
+    logger.info(f'  {found} of {checked} checked are playable'
+                + (f'; {unreachable} skipped as unreachable' if unreachable else ''))
     return found
 
 

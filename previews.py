@@ -14,6 +14,14 @@ import deezer
 
 logger = logging.getLogger(__name__)
 
+
+class LookupFailed(Exception):
+    """No provider could be reached, so we learned nothing.
+
+    Distinct from "searched and found nothing": a network blip must never be
+    recorded as a permanent verdict that a song has no preview.
+    """
+
 client = deezer.Client()
 
 # Deezer signs its preview URLs with a ~15 minute expiry, so a stored URL is
@@ -71,9 +79,11 @@ def _deezer_preview(clean_song, clean_artist, song_words, artist_words):
         clean_song,                                       # title only
     ]
 
+    reached = False
     for query in queries:
         try:
             results = client.search(query)
+            reached = True
         except Exception as e:
             logger.debug(f"Deezer search failed for '{query}': {e}")
             continue
@@ -84,6 +94,8 @@ def _deezer_preview(clean_song, clean_artist, song_words, artist_words):
             if is_match(song_words, artist_words, track.title, track.artist.name):
                 return track.preview, str(track.id)
 
+    if not reached:
+        raise LookupFailed('deezer unreachable')
     return None, None
 
 
@@ -101,8 +113,7 @@ def _itunes_preview(clean_song, clean_artist, song_words, artist_words):
         with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT) as response:
             results = json.load(response).get('results', [])
     except Exception as e:
-        logger.debug(f'iTunes search failed for {clean_song}: {e}')
-        return None, None
+        raise LookupFailed(f'itunes unreachable: {e}')
 
     for item in results:
         preview = item.get('previewUrl')
@@ -129,22 +140,30 @@ def find_preview(song, artist):
     if not song_words:
         return None, None, None
 
+    reached = False
     for source, lookup in (('deezer', _deezer_preview), ('itunes', _itunes_preview)):
         try:
             preview, track_id = lookup(clean_song, clean_artist,
                                        song_words, artist_words)
+            reached = True
         except Exception as e:
             logger.warning(f'{source} lookup failed for {artist} - {song}: {e}')
             continue
         if preview:
             return preview, source, track_id
 
+    if not reached:
+        raise LookupFailed(f'no provider reachable for {artist} - {song}')
     return None, None, None
 
 
 def get_preview_url(song, artist):
     """Search for a playable preview URL. Not cached - see EXPIRING_SOURCES."""
-    preview, _source, _track_id = find_preview(song, artist)
+    try:
+        preview, _source, _track_id = find_preview(song, artist)
+    except LookupFailed as e:
+        logger.warning(f'Preview lookup unavailable: {e}')
+        return None
     if not preview:
         logger.info(f'No preview found for {artist} - {song}')
     return preview
