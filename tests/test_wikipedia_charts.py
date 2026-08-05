@@ -91,6 +91,40 @@ def test_rowspan_carries_the_artist_down():
     assert entries[2]['artist'] == 'Louis Armstrong'
 
 
+def test_double_a_side_does_not_leak_into_the_artist():
+    """Two quoted titles in one cell (1996 #29)."""
+    double = HEADER + '''|-
+|29 || "[[You Learn]]" / "[[You Oughta Know]]" || [[Alanis Morissette]]
+|}
+'''
+    entry = parsed(double, 1996)[0]
+
+    assert entry['artist'] == 'Alanis Morissette'
+    assert entry['song'] == 'You Learn'
+
+
+def test_artist_nickname_in_quotes_survives():
+    """Quotes don't only mean titles - some artists have quoted nicknames."""
+    nicknamed = HEADER + '''|-
+|1 || "[[Rinky Dink]]" || [[Dave "Baby" Cortez]]
+|-
+|2 || "[[Ahab the Arab]]" || [[Ray Stevens]]
+|}
+'''
+    entries = parsed(nicknamed, 1962)
+
+    assert entries[0]['artist'] == 'Dave "Baby" Cortez'
+    assert entries[1]['artist'] == 'Ray Stevens'
+
+
+def test_sort_value_attribute_is_stripped():
+    sortable = HEADER + '''|-
+|1 || "[[Song Sung Blue]]" || data-sort-value="Diamond"| [[Neil Diamond]]
+|}
+'''
+    assert parsed(sortable, 1972)[0]['artist'] == 'Neil Diamond'
+
+
 def test_stray_pipe_on_separator_line():
     entries = parsed(STRAY_PIPE_FORMAT, 1989)
 

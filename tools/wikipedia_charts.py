@@ -38,6 +38,8 @@ _HTML_TAG = re.compile(r'<[^>]+>')
 # An artist with consecutive entries gets one cell spanning several rows, which
 # leaves the rows underneath with no artist of their own.
 _ROWSPAN = re.compile(r'rowspan\s*=\s*"?(\d+)"?\s*\|')
+# Cell attributes (rowspan="2", scope="row", style="...") hold quoted values
+_CELL_ATTR = re.compile(r'\b[a-z-]+\s*=\s*"[^"]*"\s*\|?')
 
 
 def clean_wikitext(value):
@@ -80,24 +82,36 @@ def _parse_row(chunk):
         return None
     rank = int(rank_match.group(1))
 
-    # The title is the first quoted run; the artist is whatever follows it
     remainder = text[rank_match.end():]
-    title_match = _TITLE.search(remainder)
-    if not title_match:
+
+    # Read the rowspan, then strip all cell attributes. They contain quoted
+    # values (rowspan="2") that would otherwise look like song titles below.
+    rowspan = 1
+    span_match = _ROWSPAN.search(remainder)
+    if span_match:
+        rowspan = int(span_match.group(1))
+    remainder = _CELL_ATTR.sub(' | ', remainder)
+
+    # Work in table cells rather than by quote position. Titles can be doubled
+    # up ("You Learn" / "You Oughta Know") and artists can carry quoted
+    # nicknames (Clarence "Frogman" Henry), so quotes alone don't delimit them.
+    cells = remainder.split('||')
+
+    title_cell = next(
+        (i for i, cell in enumerate(cells) if _TITLE.search(cell)), None)
+    if title_cell is None:
         return None
 
-    song = clean_wikitext(title_match.group(1))
+    song = clean_wikitext(_TITLE.search(cells[title_cell]).group(1))
     if not song:
         return None
 
-    artist_cell = remainder[title_match.end():].lstrip('| ')
-    rowspan = 1
-    span_match = _ROWSPAN.search(artist_cell)
-    if span_match:
-        rowspan = int(span_match.group(1))
-        artist_cell = artist_cell[span_match.end():]
+    # The artist is the final cell - unless the row ends at the title, which
+    # means a spanning cell above supplies the artist.
+    artist = None
+    if len(cells) - 1 > title_cell:
+        artist = clean_wikitext(cells[-1].lstrip('| ')) or None
 
-    artist = clean_wikitext(artist_cell) or None
     return rank, song, artist, rowspan
 
 

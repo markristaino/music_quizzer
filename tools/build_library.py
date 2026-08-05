@@ -50,13 +50,12 @@ def collect_entries(years):
         for entry in entries:
             key = (normalise(entry['song']), normalise(entry['artist']))
             existing = songs.get(key)
-            if existing is None:
+            if existing is None or entry['rank'] < existing['rank']:
+                # A hit can chart in two consecutive years. Credit it to the
+                # year it placed highest, keeping year and rank consistent -
+                # taking the best rank but the earliest year would file a 2022
+                # number one under 2021.
                 songs[key] = dict(entry)
-            else:
-                # A hit can chart in two consecutive years; credit the first
-                # appearance and the better placing
-                existing['year'] = min(existing['year'], entry['year'])
-                existing['rank'] = min(existing['rank'], entry['rank'])
 
         time.sleep(REQUEST_PAUSE)
 
@@ -114,7 +113,7 @@ def genres_for(artist, mapping):
             or mapping.get(normalise(clean_artist_name(artist))))
 
 
-def build(years, with_genres=True, dry_run=False):
+def build(years, with_genres=True, dry_run=False, replace=False):
     songs, failures = collect_entries(years)
     logger.info(f'\n{len(songs)} unique songs from {len(years) - len(failures)} years')
 
@@ -147,6 +146,19 @@ def build(years, with_genres=True, dry_run=False):
         return rows
 
     library.init_songs_table()
+
+    if replace:
+        # Songs are keyed on (song, artist), so a corrected artist inserts a new
+        # row and orphans the old one. Clearing what this build owns - year-end
+        # entries - is the only way to retire those. Weekly chart additions,
+        # which have no year_end_rank, are left alone.
+        with library.get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM songs WHERE year_end_rank IS NOT NULL')
+            removed = cursor.rowcount
+            conn.commit()
+        logger.info(f'Replaced: cleared {removed} existing year-end songs')
+
     written = library.upsert_songs(rows)
     logger.info(f'\nWrote {written} songs to '
                 f"{'Postgres' if library.USE_POSTGRES else library.SQLITE_PATH}")
@@ -165,10 +177,14 @@ def main():
                         help='Skip the Last.fm genre lookup')
     parser.add_argument('--dry-run', action='store_true',
                         help='Parse and report without writing')
+    parser.add_argument('--replace', action='store_true',
+                        help='Clear existing year-end songs first, so corrected '
+                             'artists replace old rows instead of duplicating them')
     args = parser.parse_args()
 
     years = args.years or list(range(FIRST_CHART_YEAR, datetime.now().year))
-    build(years, with_genres=not args.no_genres, dry_run=args.dry_run)
+    build(years, with_genres=not args.no_genres, dry_run=args.dry_run,
+          replace=args.replace)
 
 
 if __name__ == '__main__':

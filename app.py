@@ -5,6 +5,7 @@ import os
 import html
 import sys
 import logging
+from difflib import SequenceMatcher
 
 import library
 from library import USE_POSTGRES, get_db, sql
@@ -231,6 +232,43 @@ def load_song_data():
 song_data, all_decades = load_song_data()
 
 
+# Answer matching. Requiring the exact name as a substring meant one wrong
+# letter failed the round, so guesses are matched three ways, loosest last.
+WHOLE_MATCH_RATIO = 0.8   # "alanis morisett" vs "alanis morissette"
+TOKEN_MATCH_RATIO = 0.8   # a single misspelled word
+MIN_TOKEN_LENGTH = 5      # short words like "john" are too common to accept alone
+
+ANSWER_STOPWORDS = {'the', 'and', 'featuring', 'with', 'their', 'band'}
+
+
+def _similar(a, b, threshold):
+    return SequenceMatcher(None, a, b).ratio() >= threshold
+
+
+def answer_matches(guess, correct):
+    """Is `guess` close enough to `correct` to count? Both come in cleaned."""
+    if not guess or not correct:
+        return False
+
+    # The full name somewhere in the answer
+    if correct in guess:
+        return True
+
+    # The whole answer, allowing for typos
+    if _similar(guess, correct, WHOLE_MATCH_RATIO):
+        return True
+
+    # A distinctive word on its own - surname only, or one word misspelled
+    guess_words = guess.split()
+    for word in correct.split():
+        if len(word) < MIN_TOKEN_LENGTH or word in ANSWER_STOPWORDS:
+            continue
+        if any(_similar(word, other, TOKEN_MATCH_RATIO) for other in guess_words):
+            return True
+
+    return False
+
+
 def remember_song(index):
     """Record a song as recently played for this player only."""
     recent = session.get('recent_songs', [])
@@ -403,9 +441,8 @@ def check_answer():
         correct_artist = clean_text(current_song['artist'].lower())
         correct_song = clean_text(current_song['song'].lower())
 
-        is_correct = bool(user_answer) and (
-            correct_song in user_answer or correct_artist in user_answer
-        )
+        is_correct = (answer_matches(user_answer, correct_artist)
+                      or answer_matches(user_answer, correct_song))
 
         # Consume the song so the same round cannot be scored twice
         session.pop('current_song', None)

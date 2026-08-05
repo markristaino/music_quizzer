@@ -14,6 +14,8 @@ from contextlib import contextmanager
 
 import pandas as pd
 
+from exclusions import is_excluded
+
 logger = logging.getLogger(__name__)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -182,14 +184,32 @@ def _load_from_postgres():
     })
 
 
+def _drop_excluded_artists(df):
+    """Remove artists held out of the quiz. See exclusions.py."""
+    if df is None or df.empty or 'Artist' not in df.columns:
+        return df
+
+    years = pd.to_numeric(df.get('Year'), errors='coerce')
+    excluded = [
+        is_excluded(artist, None if pd.isna(year) else year)
+        for artist, year in zip(df['Artist'], years)
+    ]
+
+    dropped = sum(excluded)
+    if dropped:
+        logger.info(f'Excluded {dropped} songs by held-out artists')
+
+    return df[[not flag for flag in excluded]]
+
+
 def load_songs():
     """Load the library from whichever backend is configured."""
     if USE_POSTGRES and songs_table_exists():
         logger.info('Loading song library from Postgres')
-        return _load_from_postgres()
+        return _drop_excluded_artists(_load_from_postgres())
 
     if USE_POSTGRES:
         logger.warning('Postgres has no song library yet - falling back to the CSV. '
                        'Run tools/build_library.py to populate it.')
 
-    return _load_from_csv()
+    return _drop_excluded_artists(_load_from_csv())

@@ -268,6 +268,52 @@ def test_parent_genre_mapping():
     assert quiz.map_to_parent_genre('polka') == 'polka'  # unknown passes through
 
 
+def matches(guess, correct):
+    return quiz.answer_matches(quiz.clean_text(guess.lower()),
+                               quiz.clean_text(correct.lower()))
+
+
+@pytest.mark.parametrize('guess, correct', [
+    ('Alanis Morissette', 'Alanis Morissette'),   # exact
+    ('alanis morisett', 'Alanis Morissette'),     # a letter short
+    ('whitney huston', 'Whitney Houston'),        # misspelled
+    ('the beetles', 'The Beatles'),               # misspelled
+    ('morissette', 'Alanis Morissette'),          # surname only
+    ('alanis', 'Alanis Morissette'),              # first name only
+    ('beatles', 'The Beatles'),                   # without the article
+    ('simon and garfunkle', 'Simon & Garfunkel'), # ampersand plus a typo
+    ('i think its fleetwood mac', 'Fleetwood Mac'),  # buried in a sentence
+])
+def test_forgiving_answers_are_accepted(guess, correct):
+    assert matches(guess, correct)
+
+
+@pytest.mark.parametrize('guess, correct', [
+    ('', 'Alanis Morissette'),
+    ('madonna', 'Alanis Morissette'),
+    ('the police', 'The Beatles'),
+    ('john lennon', 'Elton John'),        # short shared word isn't enough
+    ('no idea', 'Fleetwood Mac'),
+])
+def test_wrong_answers_are_still_wrong(guess, correct):
+    assert not matches(guess, correct)
+
+
+def test_a_shared_surname_is_accepted(monkeypatch):
+    """Known cost of accepting surnames alone - loosening further would
+    catch phonetic guesses but let more of these through."""
+    assert matches('wilson phillips', 'Jackie Wilson')
+
+
+def test_answer_can_be_the_song_title(client):
+    start_game(client)
+    client.get('/new-song')
+    answer = current_answer(client)
+
+    result = client.post('/check-answer', json={'answer': answer['song']}).get_json()
+    assert result['correct'] is True
+
+
 def test_clean_text():
     assert quiz.clean_text("Don't Stop (Remastered)") == 'Dont Stop'
     assert quiz.clean_text('Song feat. Someone') == 'Song Someone'
