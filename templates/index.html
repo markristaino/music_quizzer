@@ -8,6 +8,13 @@
     <meta property="og:title" content="Name That Artist">
     <meta property="og:description" content="Six clips. Six chances. Name who's singing.">
     <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ request.url_root }}">
+    <!-- Texts and chat apps only fetch the card image over an absolute URL, and
+         they won't follow a redirect from http to https. -->
+    <meta property="og:image" content="{{ url_for('static', filename='og-image.png', _external=True) }}">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Name That Artist — six songs, name who's singing.">
     <meta name="twitter:card" content="summary_large_image">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -299,7 +306,7 @@
 
         .entry {
             display: grid;
-            grid-template-columns: 2.5rem 1fr auto;
+            grid-template-columns: 2.5rem 1fr auto auto;
             align-items: baseline;
             gap: 1rem;
             padding: 0.7rem 0;
@@ -320,6 +327,14 @@
             font-size: 0.75rem;
             color: var(--muted);
             letter-spacing: 0.04em;
+        }
+
+        /* Sits beside the total so the two numbers read as one column pair:
+           how many they got, and how often they got it. */
+        .entry-accuracy {
+            font-size: 0.8125rem;
+            color: var(--muted);
+            font-variant-numeric: tabular-nums;
         }
 
         .entry-score {
@@ -635,11 +650,15 @@
                         ? '1 game' : entry.games + ' games';
                     name.appendChild(meta);
 
+                    var accuracy = document.createElement('span');
+                    accuracy.className = 'entry-accuracy';
+                    accuracy.textContent = entry.accuracy + '%';
+
                     var score = document.createElement('span');
                     score.className = 'entry-score';
                     score.textContent = entry.total;
 
-                    row.append(rank, name, score);
+                    row.append(rank, name, accuracy, score);
                     leaderboardList.appendChild(row);
                 });
             })

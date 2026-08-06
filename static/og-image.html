@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Space+Grotesk:wght@400;500;700&display=block" rel="stylesheet">
+<style>
+  :root {
+    --ink: #160F1B;
+    --line: #33253F;
+    --bone: #F2EBE1;
+    --muted: #8B7F9A;
+    --amber: #FFB627;
+    --magenta: #E0197B;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    width: 1200px;
+    height: 630px;
+    background: var(--ink);
+    background-image: radial-gradient(120% 70% at 50% -18%, #2C1B3A 0%, transparent 62%);
+    background-repeat: no-repeat;
+    color: var(--bone);
+    font-family: 'Space Grotesk', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .frame {
+    height: 100%;
+    padding: 64px 80px 72px;
+    display: flex;
+    flex-direction: column;
+  }
+  .masthead {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+  .wordmark {
+    font-weight: 700;
+    font-size: 20px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  .standing {
+    font-size: 20px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .slots {
+    display: flex;
+    gap: 10px;
+    margin: 28px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .slot {
+    flex: 1;
+    height: 6px;
+    background: var(--line);
+    border-radius: 3px;
+  }
+  .slot.hit {
+    background: var(--amber);
+    box-shadow: 0 0 24px rgba(255, 182, 39, 0.45);
+  }
+  .slot.miss { background: var(--magenta); opacity: 0.55; }
+  .display {
+    font-family: 'Bricolage Grotesque', Georgia, serif;
+    font-weight: 800;
+    font-size: 104px;
+    line-height: 0.94;
+    letter-spacing: -0.03em;
+    margin: auto 0 0;
+  }
+  .display em {
+    font-style: normal;
+    display: block;
+    color: var(--amber);
+  }
+  .lede {
+    margin: 28px 0 0;
+    font-size: 26px;
+    color: var(--muted);
+    letter-spacing: 0.01em;
+  }
+</style>
+</head>
+<body>
+  <div class="frame">
+    <header class="masthead">
+      <span class="wordmark">Name that artist</span>
+      <span class="standing">1960&ndash;now</span>
+    </header>
+    <ul class="slots">
+      <li class="slot hit"></li>
+      <li class="slot hit"></li>
+      <li class="slot miss"></li>
+      <li class="slot hit"></li>
+      <li class="slot"></li>
+      <li class="slot"></li>
+    </ul>
+    <h1 class="display">Six songs.<em>Name who&rsquo;s singing.</em></h1>
+    <p class="lede">Six clips. Six chances. Guess the artist.</p>
+  </div>
+</body>
+</html>

@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, jsonify, session
+from werkzeug.middleware.proxy_fix import ProxyFix
 import pandas as pd
 import random
 import os
@@ -19,6 +20,11 @@ logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+
+# Heroku terminates TLS at its router, so Flask sees a plain http request and
+# would write http:// into the share-card image URL. Trusting the forwarded
+# scheme keeps that link https, which is what chat apps will fetch.
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 # Gunicorn imports this module as "app"; running it directly means local dev.
 RUNNING_LOCALLY = __name__ == '__main__'
@@ -586,7 +592,10 @@ def standings(limit=LEADERBOARD_SIZE):
         cursor.execute(sql(STANDINGS_QUERY + ' LIMIT ?'), (limit,))
         return [
             {'username': name, 'total': int(total), 'games': int(games),
-             'best': int(best)}
+             'best': int(best),
+             # Share of all clips named right. Every game is MAX_SONGS rounds,
+             # so the denominator comes from the game count.
+             'accuracy': round(int(total) / (int(games) * MAX_SONGS) * 100)}
             for name, total, games, best in cursor.fetchall()
         ]
 

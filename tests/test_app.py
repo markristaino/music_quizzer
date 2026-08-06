@@ -363,7 +363,9 @@ def test_totals_accumulate_across_games(client):
     board = client.get('/leaderboard').get_json()
 
     assert len(board) == 1
-    assert board[0] == {'username': 'repeat', 'total': 5, 'games': 2, 'best': 3}
+    # 5 right out of 2 games x 6 songs
+    assert board[0] == {'username': 'repeat', 'total': 5, 'games': 2, 'best': 3,
+                        'accuracy': 42}
 
 
 def test_names_are_grouped_regardless_of_case(client):
